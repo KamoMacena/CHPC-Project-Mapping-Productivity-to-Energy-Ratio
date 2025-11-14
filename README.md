@@ -17,17 +17,11 @@ Through this investigation, we aim to answer fundamental questions:
 By integrating performance measurement with power profiling, this work contributes a **framework for energy-aware HPC benchmarking**, providing actionable guidance for both system operators and application developers seeking to reconcile high computational throughput with sustainable energy usage. The ultimate goal is not only to characterize system behavior but to inform policies that maximize scientific productivity while minimizing operational cost and environmental impact.
 
 
+### System Information Overview
 
+To ensure reproducibility and accurate interpretation of productivity-to-energy measurements, a detailed characterization of the HPC system used in this study was conducted. The cluster node smshost was profiled across multiple layers, including hardware architecture, memory hierarchy, interconnects, and software environment.
 
-
-## Cluster System Information Report
-
-**Host:** smshost  
-**Date:** Fri Nov 14 03:44:04 SAST 2025  
-
----
-
-#### Table 1: 
+Table 1: Operating System Information
 | Field | Value |
 |-------|-------|
 | Hostname | smshost |
@@ -37,9 +31,8 @@ By integrating performance measurement with power profiling, this work contribut
 | Kernel Platform | el8 |
 | Support End | 2029-05-31 |
 
----
 
-#### Table 2: System details for the CPU used in this study
+Table 2: System details for the CPU used in this study
 | Item | Value |
 |------|-------|
 | Architecture | x86_64 |
@@ -59,8 +52,7 @@ By integrating performance measurement with power profiling, this work contribut
 | NUMA Node1 CPUs | 8–15 |
 
 
-#### Table 3: System Memory Information
-
+Table 3: System Memory Information
 | Field | Value |
 |-------|-------|
 | Total RAM | 31 GiB |
@@ -72,14 +64,14 @@ By integrating performance measurement with power profiling, this work contribut
 | Swap Used | 1.0 GiB |
 
 
-#### Table 4:Sytem GPU / Accelerator Information
+Table 4:Sytem GPU / Accelerator Information shows no discrete GPUs were detected, indicating that all benchmarks rely solely on CPU computation
 | Field | Value |
 |-------|-------|
 | NVIDIA GPU | None detected |
 | Drivers | Not installed |
 
 
-#### Table 5. Network Interfaces
+ Table 5. Network Interfaces
 | Interface | State | IP Address | Notes |
 |-----------|-------|------------|-------|
 | lo | UP | 127.0.0.1 | Loopback |
@@ -88,15 +80,14 @@ By integrating performance measurement with power profiling, this work contribut
 | ib0 | DOWN | — | Mellanox IB (ConnectX-3) |
 | virbr0 | DOWN | 192.168.122.1 | Virtual bridge |
 
-### Table 6 PCI Network Hardware
+Table 6 PCI Network Hardware
 | Device | Model |
 |--------|-------|
 | 02:00.0 | Intel I350 NIC |
 | 02:00.3 | Intel I350 NIC |
 | 82:00.0 | Mellanox ConnectX-3 |
 
-
-#### Table 7:  Power (RAPL)
+Table 7:  Power (RAPL)
 | Zone | Type | Energy (uJ) |
 |------|------|-------------|
 | intel-rapl:0 | package-0 | 16,511,888,631 |
@@ -107,7 +98,7 @@ By integrating performance measurement with power profiling, this work contribut
 | intel-rapl:1:1 | dram | 63,360,429,543 |
 
 
-#### Table 8: Loaded Software Modules Used in this study
+Table 8: Loaded Software Modules Used in this study
 | Module Category | Modules Loaded |
 |-----------------|----------------|
 | Compilers | gnu12/12.4.0 |
@@ -117,11 +108,13 @@ By integrating performance measurement with power profiling, this work contribut
 | Profiling | tau, scalasca, scorep, PAPI |
 
 
-## Table 9: MPI Information
+Table 9: MPI Information
 | Field | Value |
 |-------|-------|
 | MPI Implementation | OpenMPI 4.1.6 |
 | Path | /opt/ohpc/pub/mpi/openmpi4-gnu12/4.1.6/bin/mpirun |
+
+This comprehensive system profiling establishes a baseline for understanding the hardware constraints and software dependencies influencing productivity and energy efficiency. It also enables consistent, reproducible benchmarking and facilitates direct correlation between system parameters, performance, and energy consumption.
 
 # 4. Application Benchmarks: Productivity and Energy Efficiency
 
@@ -134,11 +127,6 @@ The two applications benchmarked were:
 
 More details on these benchmarks and the methodology used to gather both performance and power data are detailed in the individual sections below.  
 
-A rendered Python notebook with the analysis used to produce the data and visualizations for the efficiency analysis can be found on GitHub at:  
-[Insert link to your GitHub analysis folder/notebook here]
-
-
-
 ## 4.1 OpenFOAM (Open Field Operation and Manipulation)
 
 OpenFOAM is an open-source CFD software package. For many large-scale CFD problems, OpenFOAM is typically **memory-bound or interconnect-bound**, meaning its performance depends more on **memory bandwidth and latency** than on raw floating-point speed of the CPU.
@@ -147,8 +135,8 @@ OpenFOAM is an open-source CFD software package. For many large-scale CFD proble
 
 | Aspect                | Detail |
 |-----------------------|--------|
-| OpenFOAM Version      | [Specify version, e.g., v2306] |
-| Benchmark Case        | [Specify case, e.g., windAroundBuildings_3_2millBenchmark] |
+| OpenFOAM Version      |  OpenFOAM-v2412|
+| Benchmark Case        | simplefoam |
 | Problem Size          | [Specify cell count, e.g., 2 Million cells] |
 | Scaling Type          | Strong Scaling |
 | Key Metric (Productivity) | Total Runtime (seconds) or Iterations per second |
