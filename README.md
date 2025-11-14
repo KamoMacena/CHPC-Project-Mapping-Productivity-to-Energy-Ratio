@@ -142,7 +142,7 @@ More details on these benchmarks and the methodology used to gather both perform
 
 ## 4.1 OpenFOAM (Open Field Operation and Manipulation)
 
-OpenFOAM is an open-source CFD software package. For many large-scale CFD problems, OpenFOAM is typically **memory-bound or interconnect-bound**, meaning its performance depends more on **memory bandwidth and latency** than on raw floating-point speed of the CPU.
+OpenFOAM is an open-source CFD software package that simulates fluid flow, heat transfer, turbulence, and multiphase systems using the finite volume method. For many large-scale CFD problems, OpenFOAM is typically memory-bound or interconnect-bound, meaning its performance depends more on memory bandwidth and latency than on raw floating-point speed of the CPU. It allows users to create meshes, define physics and boundary conditions, solve equations in parallel, and post-process results to analyze velocity, pressure, and other physical fields in the simulated domain.
 
 ### Benchmark Details
 
@@ -150,12 +150,12 @@ OpenFOAM is an open-source CFD software package. For many large-scale CFD proble
 |-----------------------|--------|
 | OpenFOAM Version      |  OpenFOAM-v2412|
 | Benchmark Case        | simplefoam |
-| Problem Size          | [Specify cell count, e.g., 2 Million cells] |
+| Problem Size          | 248769 cells|
 | Scaling Type          | Strong Scaling |
 | Key Metric (Productivity) | Total Runtime (seconds) or Iterations per second |
 | Key Metric (Efficiency)  | Iterations/s per Watt |
 
-**Table 10:** Summary of OpenFOAM benchmark parameters.
+Table 10: Summary of OpenFOAM benchmark parameters.
 
 ---
 
@@ -199,7 +199,9 @@ LAMMPS is a widely used molecular dynamics simulation package. It is primarily w
 | Key Metric (Productivity) | Timesteps per second (ts/s) |
 | Key Metric (Efficiency)  | Timesteps/s per Watt |
 
-**Table 8:** Summary of LAMMPS benchmark parameters.
+Table 8: Summary of LAMMPS benchmark parameters.
+
+
 
 ---
 
