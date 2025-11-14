@@ -75,27 +75,7 @@
 | 02:00.3 | Intel I350 NIC |
 | 82:00.0 | Mellanox ConnectX-3 |
 
----
 
-## 6. Storage Information
-
-### Block Devices
-| Device | Type | Size | Mount |
-|--------|------|------|-------|
-| sda | Disk | 232.9G | — |
-| sda1 | Partition | 1G | /boot |
-| sda2 | Partition | 231.9G | — |
-| rl-root | LVM | 70G | / |
-| rl-swap | LVM | 15.8G | swap |
-| rl-home | LVM | 146.2G | /home |
-
-### Filesystem Usage
-| Mount Point | Size | Used | Avail | Use% |
-|-------------|------|------|-------|------|
-| / | 70G | 70G | 218M | 100% |
-| /boot | 1G | 442M | 573M | 44% |
-| /home | 147G | 98G | 49G | 67% |
-| tmpfs /dev | 16G | 0 | 16G | 0% |
 
 ---
 
@@ -118,15 +98,7 @@
 | compute01 | 16 | DOWN* | Manual reset |
 | compute02 | 16 | DOWN* | Not responding |
 
-### SLURM Queue (Pending Jobs)
-| JobID | User | Job Name | State | Reason |
-|-------|------|----------|-------|--------|
-| 180 | musa_maz | RunOpenF | PD | Required nodes unavailable |
-| 179 | musa_maz | LAMMPS_R | PD | Nodes DOWN/DRAINED |
-| 178–176 | gift_nya | test_nod | PD | compute00–02 DOWN |
-| 70 | lehlogon | hybrid_m | PD | PartitionConfig |
 
----
 
 ## 9. Loaded Software Modules
 | Module Category | Modules Loaded |
