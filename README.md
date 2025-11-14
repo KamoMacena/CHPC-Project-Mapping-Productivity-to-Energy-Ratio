@@ -17,7 +17,7 @@ Through this investigation, we aim to answer fundamental questions:
 By integrating performance measurement with power profiling, this work contributes a **framework for energy-aware HPC benchmarking**, providing actionable guidance for both system operators and application developers seeking to reconcile high computational throughput with sustainable energy usage. The ultimate goal is not only to characterize system behavior but to inform policies that maximize scientific productivity while minimizing operational cost and environmental impact.
 
 
-### System Information Overview
+## 2. System Information Overview
 
 To ensure reproducibility and accurate interpretation of productivity-to-energy measurements, a detailed characterization of the HPC system used in this study was conducted. The cluster node smshost was profiled across multiple layers, including hardware architecture, memory hierarchy, interconnects, and software environment.
 
@@ -116,26 +116,20 @@ Table 9: MPI Information
 
 This comprehensive system profiling establishes a baseline for understanding the hardware constraints and software dependencies influencing productivity and energy efficiency. It also enables consistent, reproducible benchmarking and facilitates direct correlation between system parameters, performance, and energy consumption.
 
-## Key System Parameters Tuned for Benchmark Jobs
+## 3. Key Tunable Parameters and Their Impact
 
-In this study, each benchmark job was systematically configured to explore how key system-level parameters influence computational performance and energy efficiency. The primary parameters tuned were **CPU frequency**, **CPU governor**, **MPI rank placement and core pinning**, and **NUMA memory allocation policy**. Below, each parameter is defined and its role in performance and energy management is explained:
+**CPU Behavior:** The CPU frequency and its scaling behavior determine the processing speed and energy consumption of the node. Jobs can request a **performance governor** to maintain a high and stable frequency, maximizing throughput, or a **powersave governor** to reduce frequency and conserve energy. If administrative permissions restrict changing the governor, the current frequency and turbo state are recorded to ensure results can be accurately interpreted.
 
-- **CPU Frequency**  
-  The operating speed of the processor, measured in gigahertz (GHz), which determines how many instructions the CPU can execute per second. Higher frequencies increase raw computational throughput but also raise power consumption.
+**Placement and Core Pinning:** Proper placement of MPI ranks and binding of threads to specific CPU cores reduces resource contention, minimizes random process migration, and enhances cache locality. Core pinning stabilizes execution timing, improves reproducibility, and is one of the most effective ways to increase throughput without modifying application code.
 
-- **CPU Governor**  
-  A software-controlled mechanism that manages CPU frequency scaling. The **performance governor** maintains the maximum frequency to prioritize throughput, while the **powersave governor** reduces frequency to conserve energy.
+**NUMA Memory Policy:** On multi-socket nodes, memory is physically segmented across NUMA nodes. Assigning memory **locally** to the socket executing the process reduces access latency, while **interleaving memory** across sockets distributes bandwidth more evenly. The optimal policy depends on the memory access patterns of the application, and both approaches were tested to evaluate their effect on performance and energy efficiency.
 
-- **MPI Rank Placement and Core Pinning**  
-  MPI rank placement defines which CPU cores execute specific parallel processes. **Core pinning** binds a process to a specific core, minimizing process migration, reducing cache contention, and stabilizing execution timing, which improves reproducibility and performance predictability.
-
-- **NUMA (Non-Uniform Memory Access) Memory Allocation Policy**  
-  Defines how memory is assigned in multi-socket systems. **Local memory allocation** assigns memory to the same socket as the executing process for lower latency, while **interleaved memory allocation** distributes memory across sockets to balance bandwidth. Different workloads respond differently to these policies, affecting both speed and energy usage.
+Each configuration directly affects how quickly the CPU completes computational tasks and the total power drawn by the node. By measuring both **performance metrics** (e.g., GFLOPS or time-to-solution) and **energy consumption**, a **productivity-to-energy ratio** can be computed, reflecting the amount of useful work per unit of energy. Core pinning and NUMA tuning primarily enhance performance stability, while CPU frequency and governor settings directly modulate the energy profile. Together, these parameters allow identification of the most energy-efficient and high-performance configurations for HPC benchmarks.
 
 By tuning these parameters, the study created a reproducible framework to measure runtime performance and energy consumption, enabling calculation of productivity-to-energy ratios for both compute-intensive applications like LAMMPS and memory-bound workloads such as OpenFOAM. This methodology provides insight into the interplay between hardware configuration and application characteristics, supporting energy-efficient high-performance computing without compromising throughput.
 
 
-# 4. Application Benchmarks: Productivity and Energy Efficiency
+## 4. Application Benchmarks: Productivity and Energy Efficiency
 
 In this study, we conducted two primary benchmark tests using representative HPC applications to determine the optimal **Productivity-to-Energy Cost Ratio** on the repurposed legacy hardware. Unlike traditional performance reports, our analysis focuses on the trade-off between raw speed and power consumption by manipulating system parameters via the Slurm scheduler.
 
