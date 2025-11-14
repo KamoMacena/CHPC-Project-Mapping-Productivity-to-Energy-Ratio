@@ -1,4 +1,26 @@
-# Cluster System Information Report
+# 1. Introduction
+
+High-Performance Computing (HPC) systems are foundational to scientific discovery, enabling simulations and analyses that are otherwise infeasible. Yet, as computational demand escalates, the associated energy footprint has emerged as a critical limiting factor for both operational sustainability and cost-efficiency. Modern HPC facilities are power-hungry: the balance between computational productivity and energy consumption is no longer merely a secondary concern but a central metric that dictates hardware design, scheduling policies, and workload optimization strategies.
+
+Traditional performance evaluations of HPC applications emphasize raw throughput—measured in FLOPS, timesteps per second, or iterations per second—without explicitly accounting for the power costs incurred to achieve those performance gains. However, a nuanced understanding of **productivity-to-energy trade-offs** is essential in the current landscape, where energy constraints may outweigh peak computational capability in determining overall system efficiency. In other words, **maximum performance does not equate to optimal productivity** when energy consumption is considered.
+
+The energy consumed by HPC applications is governed by multiple interacting factors. At the node level, processor frequency and voltage, memory subsystem bandwidth and latency, interconnect efficiency, and accelerator utilization all contribute to the instantaneous power draw. At the workload level, application characteristics—compute-bound versus memory-bound, communication patterns, and I/O intensity—dictate how hardware resources are stressed and, consequently, how energy is expended. These dependencies are complex, nonlinear, and workload-specific, underscoring the need for systematic benchmarking across a representative set of applications.
+
+In this study, we aim to **map energy to productivity** across representative HPC applications, quantifying the **energy efficiency ratio**—a measure of computational output per unit of energy consumed. By performing controlled experiments on repurposed legacy hardware, we explicitly manipulate CPU clock frequencies and leverage job scheduling tools (Slurm) to systematically explore the trade-offs between raw performance and energy consumption. Our focus applications, **LAMMPS** (compute-intensive molecular dynamics) and **OpenFOAM** (memory-bound computational fluid dynamics), represent contrasting workload characteristics, allowing us to generalize insights on hardware-dependent energy behavior.
+
+Through this investigation, we aim to answer fundamental questions:  
+
+1. How does energy efficiency vary with workload type, CPU frequency, and system configuration?  
+2. What is the optimal operating point for maximizing productivity per watt?  
+3. How do hardware characteristics—FLOPS, memory bandwidth, and interconnect topology—correlate with energy-to-productivity metrics across applications?  
+
+By integrating performance measurement with power profiling, this work contributes a **framework for energy-aware HPC benchmarking**, providing actionable guidance for both system operators and application developers seeking to reconcile high computational throughput with sustainable energy usage. The ultimate goal is not only to characterize system behavior but to inform policies that maximize scientific productivity while minimizing operational cost and environmental impact.
+
+
+
+
+
+## Cluster System Information Report
 
 **Host:** smshost  
 **Date:** Fri Nov 14 03:44:04 SAST 2025  
