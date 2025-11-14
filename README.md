@@ -156,6 +156,143 @@ OpenFOAM is an open-source CFD software package that simulates fluid flow, heat 
 | Key Metric (Efficiency)  | Iterations/s per Watt |
 
 Table 10: Summary of OpenFOAM benchmark parameters.
+# Key Performance and Energy Metrics for OpenFOAM
+
+To evaluate productivity and energy efficiency for OpenFOAM on repurposed HPC hardware, this study uses a set of core computational and energy-related metrics. These metrics capture both simulation performance and energy cost, allowing detailed analysis of how CPU frequency, NUMA configuration, and core placement influence overall efficiency on legacy HPC systems.
+
+---
+
+## 1. Wall-Clock Time
+
+Wall-clock time represents the total real elapsed time from the beginning of the simulation to completion. It is the most intuitive measure of productivity, as shorter wall-clock time means faster delivery of results.
+
+However, wall-clock time alone is insufficient for deeper analysis because it does not reveal:
+
+- How much of the time is spent on computation vs. communication  
+- Whether power draw was high or low during the run  
+- Whether solver inefficiencies affected total runtime  
+
+For this study, wall-clock time was paired with energy consumption (Joules) to calculate productivity-per-watt under different hardware configurations.
+
+---
+
+## 2. Iteration Time and Iteration Rate
+
+OpenFOAM performs iterative updates of the governing equations. Two important metrics are:
+
+- **Iteration Time (s/iteration)**  
+- **Iteration Rate (iterations/second)**  
+
+These metrics provide finer granularity than total runtime and help evaluate:
+
+- Changes in CPU frequency  
+- Solver configuration differences  
+- Effects of NUMA locality and core pinning  
+
+Iteration rate was also used directly in calculating the **Productivity-to-Energy Cost Ratio**, since power readings were averaged across the iteration loop.
+
+---
+
+## 3. Solver Performance and Linear Solver Iterations
+
+Each OpenFOAM iteration involves solving multiple linear systems for pressure and velocity. The number and efficiency of these linear solver iterations strongly influence overall runtime.
+
+Tracked metrics include:
+
+- **Linear solver iterations per outer iteration**  
+- **Convergence rates of pressure/velocity solvers**  
+
+Higher solver iteration counts can indicate:
+
+- Poor mesh quality  
+- Inefficient preconditioners  
+- CPU frequency too low for memory throughput  
+- Penalties from NUMA non-local memory accesses  
+
+Monitoring solver iteration behaviour ensured that changes in hardware parameters did not degrade numerical performance.
+
+---
+
+## 4. Residual Reduction and Convergence Behaviour
+
+Residuals quantify how well the numerical solution satisfies the discretized equations. For this study:
+
+- Pressure residuals were typically converged to **10⁻⁶**  
+- Velocity residuals converged to **10⁻⁵**
+
+This metric was crucial for:
+
+- Ensuring all benchmark runs solved the *same* physical problem  
+- Verifying that lower-energy configurations did not destabilize the solver  
+- Detecting oscillations or divergence due to poor time-step or scheme choices  
+
+Residual monitoring guaranteed scientific consistency across all energy-efficiency tests.
+
+---
+
+## 5. Parallel Speedup and Parallel Efficiency
+
+Because OpenFOAM is parallelized using MPI, parallel performance metrics were required to understand scaling behaviour on the tested hardware.
+
+- **Speedup:**  
+  \[
+  S(N) = \frac{T(1)}{T(N)}
+  \]
+
+- **Parallel Efficiency:**  
+  \[
+  E(N) = \frac{S(N)}{N}
+  \]
+
+Strong-scaling behaviour was evaluated by running the same case on increasing core counts. Scaling efficiency typically dropped at higher core counts due to:
+
+- MPI communication overhead  
+- Memory bandwidth saturation  
+- NUMA locality penalties  
+
+These measurements helped identify the core count and frequency settings that maximized both performance and energy efficiency.
+
+---
+
+## 6. Energy Consumption and Energy Efficiency
+
+Energy metrics were central to this study. Measurements were collected using:
+
+- Intel RAPL counters (package, cores, DRAM)
+- IPMI/IPMItool where available (node-level power)
+
+Three main metrics were computed:
+
+### **Power (Watts)**  
+Instantaneous or average CPU power draw during the simulation.
+
+### **Energy (Joules)**  
+Calculated as:  
+\[
+E = \text{Average Power} \times \text{Runtime}
+\]
+
+### **Performance per Watt**  
+Defined for OpenFOAM as:  
+\[
+\text{Energy Efficiency} = \frac{\text{Iterations per second}}{\text{Watts}}
+\]
+
+This metric directly supports the project objective: maximizing scientific throughput per unit of energy consumed.
+
+---
+
+## How These Metrics Support the Study Objective
+
+Together, these metrics enable:
+
+- Precise mapping of how CPU frequency affects energy efficiency  
+- Understanding of compute-bound vs. memory-bound behaviour  
+- Identification of optimal operating points (maximum productivity per watt)  
+- Evaluation of legacy hardware viability for modern OpenFOAM workloads  
+
+By relating iteration rate, solver cost, power draw, and convergence behaviour, this metric set provides a comprehensive framework for characterizing energy-aware performance on repurposed HPC systems.
+
 
 ---
 
