@@ -176,7 +176,7 @@ Table 10: Summary of OpenFOAM benchmark parameters.
 To evaluate productivity and energy efficiency for OpenFOAM on repurposed HPC hardware, this study uses a set of core computational and energy-related metrics. These metrics capture both simulation performance and energy cost, allowing detailed analysis of how CPU frequency, NUMA configuration, and core placement influence overall efficiency on legacy HPC systems.
 
 
-##### 1. Wall-Clock Time
+#### 1. Wall-Clock Time
 
 Wall-clock time represents the total real elapsed time from the beginning of the simulation to completion. It is the most intuitive measure of productivity, as shorter wall-clock time means faster delivery of results.
 
@@ -189,7 +189,7 @@ However, wall-clock time alone is insufficient for deeper analysis because it do
 For this study, wall-clock time was paired with energy consumption (Joules) to calculate productivity-per-watt under different hardware configurations.
 
 
-##### 2. Iteration Time and Iteration Rate
+#### 2. Iteration Time and Iteration Rate
 
 OpenFOAM performs iterative updates of the governing equations. Two important metrics are:
 
@@ -204,7 +204,7 @@ These metrics provide finer granularity than total runtime and help evaluate:
 
 Iteration rate was also used directly in calculating the **Productivity-to-Energy Cost Ratio**, since power readings were averaged across the iteration loop.
 
-#### 3. Solver Performance and Linear Solver Iterations
+### 3. Solver Performance and Linear Solver Iterations
 
 Each OpenFOAM iteration involves solving multiple linear systems for pressure and velocity. The number and efficiency of these linear solver iterations strongly influence overall runtime.
 
@@ -239,7 +239,7 @@ This metric was crucial for:
 Residual monitoring guaranteed scientific consistency across all energy-efficiency tests.
 
 
- #### 5. Parallel Speedup and Parallel Efficiency
+ ### 5. Parallel Speedup and Parallel Efficiency
 
 Because OpenFOAM is parallelized using MPI, parallel performance metrics were required to understand scaling behaviour on the tested hardware.
 
@@ -326,7 +326,7 @@ Table 8: Summary of LAMMPS benchmark parameters.
 # Key Performance and Energy Metrics for Lammps
 
 
-#### 1. Wall-Clock Time
+### 1. Wall-Clock Time
 
  Wall-clock time measures the total elapsed real time from the start to the completion of a LAMMPS simulation.It is the most intuitive indicator of productivity because it directly represents how quickly simulation results can be obtained. Faster completion times translate to higher throughput for research and engineering workflows.
  
@@ -339,7 +339,7 @@ Wall-clock time alone does not provide sufficient insight into the underlying re
 
 
 
-#### 2. Timestep Duration and Timestep Rate
+### 2. Timestep Duration and Timestep Rate
 
  In LAMMPS, molecular dynamics proceeds in discrete timesteps where atomic positions and velocities are updated iteratively.
 
@@ -354,7 +354,7 @@ Wall-clock time alone does not provide sufficient insight into the underlying re
  Since energy measurements are averaged across timesteps, **timestep rate** becomes a direct input to productivity-per-watt calculations.
 
 
-#### 3. Force Calculation and Neighbor List Performance
+### 3. Force Calculation and Neighbor List Performance
 
  LAMMPS performance is strongly dominated by interatomic force calculations and neighbor list updates, which are necessary to identify interacting particle pairs.
 
@@ -371,7 +371,7 @@ Wall-clock time alone does not provide sufficient insight into the underlying re
 Monitoring these metrics ensures that energy-efficient configurations do not compromise computational accuracy or simulation fidelity.
 
 
-#### 4. Parallel Speedup and Efficiency
+### 4. Parallel Speedup and Efficiency
 
 **LAMMPS Parallelization:** LAMMPS supports MPI for distributed memory parallelism and OpenMP for shared memory threading.  
 
@@ -398,7 +398,7 @@ E(N) = \frac{S(N)}{N}
  Optimal parallel configurations balance speedup and energy efficiency, maximizing timesteps per Joule rather than only raw speed.
 
 
-#### 5. Numerical Accuracy and Simulation Integrity
+### 5. Numerical Accuracy and Simulation Integrity
 
  While LAMMPS does not solve linear systems like OpenFOAM, numerical stability is critical for meaningful simulations. Energy-efficient configurations must maintain physical accuracy.
 
