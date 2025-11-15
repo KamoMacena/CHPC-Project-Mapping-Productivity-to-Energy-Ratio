@@ -7,7 +7,11 @@
 **Date:** 16 November 2025  
 **Version:** 1.0  
 
+Executive Summary
 
+High-Performance Computing (HPC) systems play a vital role in scientific discovery, but their operation comes with significant energy requirements. This report investigates the relationship between computational productivity and energy consumption when running two representative scientific applications—OpenFOAM (CFD) and LAMMPS (MD)—on repurposed legacy HPC hardware. Using the Lengau Cluster, the study evaluates how system-level tuning parameters such as CPU frequency (DVFS), parallelization strategy, and thread/process placement influence execution time, power draw, and overall energy efficiency.
+
+Power measurements were captured using Intel’s Running Average Power Limit (RAPL) interface, selected for its high accuracy and direct CPU-domain reporting. By comparing memory-bound and compute-bound applications, the report identifies the optimal operating points that maximize performance while minimizing energy cost. The findings provide actionable guidelines for improving energy efficiency on legacy HPC systems without compromising scientific productivity.
 
 # 1. Introduction
 
