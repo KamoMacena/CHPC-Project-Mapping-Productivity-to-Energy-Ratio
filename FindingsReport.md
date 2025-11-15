@@ -1,4 +1,15 @@
-#Introduction
+
+# Mapping productivity-to-energy-ratio-for-HPC-applications
+## Report on HPC Productivity-to-Energy Efficiency Analysis  
+### Running Scientific Applications on Repurposed Legacy Hardware  
+**Prepared by:** Debug Thugs   
+**Institution:** CSIR Centre for High Performance Computing (CHPC) – Lengau Cluster  
+**Date:** 16 November 2025  
+**Version:** 1.0  
+
+
+
+# 1. Introduction
 
 High-Performance Computing (HPC) is a cornerstone of modern scientific research, enabling simulations of complex physical systems that would be otherwise impossible to model in real time. However, the operation of HPC systems comes with substantial energy costs, which can become a limiting factor, particularly when working with repurposed legacy hardware. While such hardware carries minimal acquisition costs, the energy required to run simulations often dominates operational expenses. Consequently, understanding how to maximize computational productivity while minimizing energy consumption is critical for sustainable and cost-effective HPC practices.
 
