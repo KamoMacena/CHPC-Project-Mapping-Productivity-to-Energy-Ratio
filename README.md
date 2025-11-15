@@ -243,18 +243,30 @@ Residual monitoring guaranteed scientific consistency across all energy-efficien
 
 Because OpenFOAM is parallelized using MPI, parallel performance metrics were required to understand scaling behaviour on the tested hardware.
 
-- **Speedup:**  
-  \[
-   S(N) = \frac{T(1)}{T(N)}
-  \]
+- **Speedup:** Speedup measures how much faster a parallel implementation of an application executes compared to its serial (single-core) execution. It is defined as: 
+ S(N) = \frac{T(1)}{T(N)}
+  Where:
+S(N) = Speedup achieved using N processors
+T(1) = Execution time using a single processor
+T(N) = Execution time using N processors
 
-- **Parallel Efficiency:**  
-  \[
-  E(N) = \frac{S(N)}{N}
-  \]
+Interpretation:
+S(N) = 1: No speedup (parallelization ineffective)
+S(N) = N: Ideal linear speedup (perfect parallel scaling)
+S(N) > N: Super-linear speedup (rare, usually due to cache effects)
+
+- **Parallel Efficiency:**  Parallel efficiency quantifies how effectively the computational resources are utilized. It normalizes speedup by the number of processors:
+  E(N) = \frac{S(N)}{N} = \frac{T(1)}{N \cdot T(N)}
+  Where:
+
+E(N) = Efficiency of using N processors
+
+Interpretation:
+E(N) = 1 (100% efficiency): Perfect resource utilization
+E(N) < 1: Some overhead or idle time reduces efficiency
+E(N) > 1: Super-linear efficiency (rare)
 
 Strong-scaling behaviour was evaluated by running the same case on increasing core counts. Scaling efficiency typically dropped at higher core counts due to:
-
 - MPI communication overhead  
 - Memory bandwidth saturation  
 - NUMA locality penalties  
@@ -266,7 +278,6 @@ These measurements helped identify the core count and frequency settings that ma
 ## How These Metrics Support the Study Objective
 
 Together, these metrics enable:
-
 - Precise mapping of how CPU frequency affects energy efficiency  
 - Understanding of compute-bound vs. memory-bound behaviour  
 - Identification of optimal operating points (maximum productivity per watt)  
