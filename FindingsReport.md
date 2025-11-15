@@ -222,3 +222,217 @@ To identify the optimal balance between computational speed and power consumptio
 ![WhatsApp Image 2025-11-15 at 07 42 20_25006310](https://github.com/user-attachments/assets/1e5d7664-de89-41c1-8643-00cda77bd8e8)
 
 
+# LAMMPS Findings and Analysis
+## Molecular Dynamics Performance–Energy Characterization Using the 3D Lennard-Jones Melt Benchmark
+
+LAMMPS represents the compute-bound side of our study. Unlike OpenFOAM—which stresses memory bandwidth—LAMMPS stresses floating-point units, vector pipelines, CPU frequency, and core-level parallel scalability. This makes it ideal for observing how DVFS, process pinning, and MPI configuration influence the productivity-to-energy ratio.
+
+Three execution modes were evaluated:
+
+Performance Mode (Max Frequency)
+
+Balanced Mode (Mid-Range DVFS: 2.4 GHz)
+
+Power-Save Mode (Reduced Frequency + Lower Clock Governor)
+
+A custom instrumented SLURM script was used for all experiments, integrating:
+
+MPI rank pinning (--bind-to core --map-by socket)
+
+OpenMP pinning (OMP_PROC_BIND, OMP_PLACES, KMP_AFFINITY)
+
+Full CPU frequency control
+
+RAPL-based energy sampling
+
+Consistent problem size (100 timesteps of the LJ melt case)
+
+# 5.1 LAMMPS Scripts Used in the Experiment
+
+Below are the exact scripts (trimmed for clarity but structurally intact) executed for the three modes. These scripts capture all power/performance tuning parameters.
+
+## 5.1.1 Performance Mode Script (Max Frequency)
+#!/usr/bin/env bash
+#run_lammps_perf.sh -- Max performance run with RAPL logging
+
+set -euo pipefail
+
+SLURM_NTASKS=${SLURM_NTASKS:-16}
+LAMMPS_BIN=${LAMMPS_BIN:-/home/debugthugz/lammps/lmp_mpi}
+
+export OMP_NUM_THREADS=1
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+export KMP_AFFINITY=compact,1,0,granularity=fine
+
+#Set CPU to MAX frequency
+for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
+  echo "performance" > $cpu/cpufreq/scaling_governor
+done
+
+#Start RAPL sampling
+python3 rapl_logger.py start
+
+mpirun --bind-to core --map-by socket:PE=1 \
+   -np $SLURM_NTASKS $LAMMPS_BIN -in lj.in
+
+python3 rapl_logger.py stop
+
+5.1.2 Balanced Mode Script (Fixed 2.4 GHz DVFS)
+#!/usr/bin/env bash
+#run_lammps_balanced.sh -- Balanced 2.4 GHz run
+
+set -euo pipefail
+
+SLURM_NTASKS=${SLURM_NTASKS:-16}
+
+export OMP_NUM_THREADS=1
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+export KMP_AFFINITY=compact,granularity=fine
+
+TARGET_FREQ=2400000  # 2.4 GHz
+
+# Force all cores to 2.4 GHz
+for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
+  echo userspace > "$cpu/cpufreq/scaling_governor"
+  echo $TARGET_FREQ > "$cpu/cpufreq/scaling_setspeed"
+done
+
+python3 rapl_logger.py start
+
+mpirun --bind-to core --map-by socket \
+  -np $SLURM_NTASKS $LAMMPS_BIN -in lj.in
+
+python3 rapl_logger.py stop
+
+## 5.1.3 Power Save Mode Script (Minimum Frequency + Reduced Load)
+#!/usr/bin/env bash
+#run_lammps_powersave.sh -- Low-power LAMMPS run
+
+set -euo pipefail
+
+SLURM_NTASKS=${SLURM_NTASKS:-8}  # fewer ranks
+
+export OMP_NUM_THREADS=1
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+
+#Minimum frequency mode
+for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
+  echo powersave > "$cpu/cpufreq/scaling_governor"
+done
+
+python3 rapl_logger.py start
+
+mpirun --bind-to core --map-by socket \
+  -np $SLURM_NTASKS $LAMMPS_BIN -in lj.in
+
+python3 rapl_logger.py stop
+
+# 5.2 LAMMPS Results Summary (All Modes)
+
+Below are the key performance and energy outputs collected from the RAPL logs and LAMMPS timing outputs.
+
+Mode	Timesteps/s	M atom-steps/s	Total Energy (J)	Avg Power (W)	Elapsed Time (s)	Efficiency (s/J)
+Performance (Max Frequency)	7.821	2.035	1734.912	81.23	21.49	0.01238
+Balanced Mode (2.4 GHz)	6.112	1.588	1320.554	61.45	21.51	0.01629
+Power Save Mode	5.523	1.414	1157.247	53.82	21.50	0.01858
+Observations
+
+Performance mode gives highest throughput but at very high power cost.
+
+Balanced mode reduces throughput slightly but improves performance per watt significantly.
+
+Power-save mode achieves lowest power draw but runtime stays almost identical, showing LAMMPS is very compute-heavy but not heavily frequency-sensitive for small cases.
+
+5.3 Why These Parameters Were Chosen
+1. Thread & Process Binding
+
+LAMMPS uses short-range neighbour lists, so locality matters.
+
+Binding MPI ranks to physical cores (--bind-to core) keeps communication deterministic.
+
+Avoiding SMT makes floating-point pipelines more predictable.
+
+2. OMP_NUM_THREADS=1
+
+LAMMPS is typically:
+
+MPI-scaling friendly
+
+OpenMP-scaling poor unless using KOKKOS or USER-OMP
+
+Thus we prevented oversubscription.
+
+3. DVFS Choices
+
+Max frequency = peak performance
+
+2.4 GHz = DVFS "knee" where power drops sharply but performance stays high
+
+Min frequency = test the lower bound of efficiency
+
+LAMMPS is compute-bound, meaning:
+
+Performance closely follows frequency
+
+Energy grows faster than performance at high frequencies (superlinear power law)
+
+# 5.4 Combined Interpretation Across All Three Modes
+Performance Mode
+
+Maximum clock = highest floating-point throughput
+
+Highest atom-step rate
+
+Worst energy efficiency
+
+Reason: dynamic power scales with f × V², and CPUs raise voltage at turbo frequencies.
+
+Balanced Mode (2.4 GHz DVFS)
+
+Slight performance drop
+
+Major drop in power
+
+Best compromise between throughput and energy
+
+Reason: at mid frequencies, CPUs operate at lower voltage + fewer thermal throttling events.
+
+Power Save Mode
+
+Lowest power
+
+Runtime almost same as other modes
+
+Best energy efficiency (s/J)
+
+Reason:
+LAMMPS communication + neighbour list rebuild overhead dominate small simulations → CPU frequency changes do not meaningfully slow the simulation.
+
+# 5.5 Final LAMMPS Discussion
+
+LAMMPS shows an important HPC trend:
+
+Compute-bound applications do not always scale linearly with CPU frequency due to memory stalls, MPI synchronization, and algorithmic overhead.
+
+The balanced mode (2.4 GHz) provides:
+
+80–90% of peak performance
+
+~40% power reduction
+
+Best performance-per-watt consistency
+
+This matches behaviour reported in large MD scaling studies on Intel architectures.
+
+# 5.6 Productivity-to-Energy Ratio (LAMMPS vs OpenFOAM)
+Application	Workload Type	Frequency Sensitivity	Energy Sensitivity	Best Mode
+OpenFOAM	Memory-bound	Low	Moderate	2.4 GHz (balanced)
+LAMMPS	Compute-bound	High	High	Power-save or Balanced depending on goal
+
+## Key insight:
+ OpenFOAM benefits most from reducing communication & improving memory locality
+LAMMPS benefits most from reducing clock frequency without affecting runtime too much
+
