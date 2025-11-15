@@ -69,25 +69,19 @@ The primary objective of running both the OpenFOAM simpleFoam solver and the LAM
 
 Specifically, the aims of these experiments are as follows:
 
- - Measure the Trade-Off Between Performance and Energy Consumption
-
-  By systematically adjusting key system parameters—including CPU frequency, parallelization strategy, and process/thread placement—we aim to understand their impact on:
-
- -Execution Time: How long the workload takes to complete under different configurations.
-
--Power Draw: The instantaneous and average electrical power consumed during execution.
-
- -Total Energy Consumed: The cumulative energy used, integrating power over time.
-
- -Work Done per Joule: A measure of efficiency, indicating how much computational work is accomplished per unit of energy consumed.
+ - Measure the Trade-Off Between Performance and Energy Consumption By systematically adjusting key system parameters—including CPU frequency, parallelization strategy, and process/thread placement—we aim to understand their impact on:
+    -Execution Time: How long the workload takes to complete under different configurations.
+    -Power Draw: The instantaneous and average electrical power consumed during execution.
+    -Total Energy Consumed: The cumulative energy used, integrating power over time.
+    -Work Done per Joule: A measure of efficiency, indicating how much computational work is accomplished per unit of energy consumed.
 
 Through these measurements, the study identifies configurations that provide an optimal balance between performance and energy efficiency. This approach allows HPC practitioners to make informed decisions about tuning legacy hardware for sustainable, cost-effective scientific computation.
 
 ## 3. Measuring Computational Efficiency and Power Consumption
 
-o accurately quantify the productivity-to-energy ratio, it is crucial to measure both computational performance and power consumption in a precise and repeatable manner. In this study, we focus on CPU-level power monitoring using the Running Average Power Limit (RAPL) interface, which provides detailed energy readings for modern Intel processors.
+To accurately quantify the productivity-to-energy ratio, it is crucial to measure both computational performance and power consumption in a precise and repeatable manner. In this study, we focus on CPU-level power monitoring using the Running Average Power Limit (RAPL) interface, which provides detailed energy readings for modern Intel processors.
 
-1. Computational Efficiency
+## 1. Computational Efficiency
 
 Computational efficiency is measured as the amount of work completed per unit of energy consumed. For our test cases:
 
@@ -97,11 +91,11 @@ LAMMPS (LJ melt): The number of simulation timesteps per second is recorded, whi
 
 The general formula used is:
 
-Efficiency (work/joule) = Total Work Completed /Total Energy Consumed (J)
+**Efficiency (work/joule) = Total Work Completed /Total Energy Consumed (J)**
 
-his metric allows a direct comparison of different system configurations, CPU frequencies, and parallelization strategies, enabling the identification of the optimal productivity-to-energy point.
+This metric allows a direct comparison of different system configurations, CPU frequencies, and parallelization strategies, enabling the identification of the optimal productivity-to-energy point.
 
-2. Power Measurement using RAPL
+### 2. Power Measurement using RAPL
 
 RAPL (Running Average Power Limit) is an energy monitoring interface built into modern Intel CPUs. It provides highly accurate estimates of the energy consumed at the CPU package level, including cores, caches, and DRAM domains. The key reasons for choosing RAPL in this study are:
 
@@ -113,20 +107,57 @@ Repeatability and Consistency: Being an on-chip interface, RAPL readings are una
 
 In practice, the script reads the energy_uj files under /sys/class/powercap/intel-rapl at fixed intervals (e.g., every second), calculates the total energy consumed during the simulation, and combines it with elapsed execution time to compute average power:
 
-Average Power (W) = Total Energy (J) / Elapsed Time (s)
-
+**Average Power (W) = Total Energy (J) / Elapsed Time (s)**
 By emphasizing CPU-level power measurement with RAPL, we ensure that the study captures the core energy-performance trade-offs of HPC workloads, providing a robust basis for evaluating productivity-to-energy ratios on legacy HPC hardware such as the Lengau Cluster.  
-  
+ 
+ ## RAPL Energy Measurement and Efficiency Calculation
+
+To quantify the energy consumption of HPC workloads at the CPU level, **RAPL (Running Average Power Limit)** energy counters were used. RAPL reports **cumulative energy in microjoules** for CPU packages and DRAM domains.
+
+### Step 5B.1: Identify RAPL Path
+
+```bash
+ls /sys/class/powercap/intel-rapl/
+# Output: intel-rapl:0 (CPU package 0)
+```
+Step B.2: Measure Energy Before and After Execution
+# Before running the program
+cat /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
+# Output: 245678123456 µJ
+
+# Execute program
+./build/matrix_multiply 1000
+
+# After running the program
+cat /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
+# Output: 245978456789 µJ
+
+Step B.3: Calculate Energy Consumed
+
+Convert microjoules to joules:
+```bash
+Energy (J) = (After - Before) / 1,000,000
+Energy (J) = (245978456789 - 245678123456) / 1,000,000
+Energy (J) = 300.3 J
+```
+
+Note: RAPL measures CPU package energy only. Total node energy (including memory, network, and fans) is higher.
+
+Step b4: Calculate Efficiency Ratio
+
+The efficiency ratio quantifies computational performance per unit energy consumed:
+```bash
+Efficiency = Performance / Energy
+```
   ​
 ## 4. Parameters and Metrics Tuned in the OpenFOAM Performance Experiments
 
 During the performance and energy-efficiency evaluation of OpenFOAM, several hardware-level, system-level, and application-level parameters were deliberately tuned. These adjustments allowed us to study their direct impact on runtime, power consumption, and overall efficiency. Below is a breakdown of what was changed, why, and what behaviour it influences.
 
 
-Test1: We first looked into perfomance 
+### Test1: We first looked into perfomance 
 
-
-### Table 1: Tuned System and Application Parameters for Perfomance OpenFOAM Benchmarking
+Table 1: Tuned System and Application Parameters for Perfomance OpenFOAM Benchmarking
 
 | Parameter / Setting                | Applied Value                     |
 |----------------------------------|----------------------------------|
@@ -198,18 +229,6 @@ At fixed frequency, some solver parameters can reduce unnecessary iterations.
 We Increase under-relaxation slightly to 0.3 → 0.5 for U to ensure a faster convergence and less iteration time.We configured the MpI rank to reduce the communication overhead 
 
 
-
-
-
-2. Compare Memory-Bound vs Compute-Bound Behavior
-
-By using one memory-bound and one compute-bound test case, we aimed to determine:
-
-Which parameters influence each workload most strongly
-Whether optimal energy-efficient settings differ between CFD and MD simulations
-How parallelization strategies and CPU frequency scaling shift between the two application types
-
-
 ## Results: Productivity vs. Energy Efficiency
 
 To identify the optimal balance between computational speed and power consumption, we tested OpenFOAM under several fixed CPU clock frequencies. Table 1 summarizes the results, showing the effect of frequency scaling on iterations per second, average power draw, and energy efficiency. At the maximum turbo frequency of 3.5 GHz, the solver achieved 250 iterations per second, but at a high average power of 60.25 W, resulting in relatively low energy efficiency (0.0166 iterations per Watt, or 90% relative efficiency). Reducing the CPU frequency to 2.4 GHz maintained the same iteration rate while significantly reducing power consumption to 28.99 W. This setting provided the best overall energy efficiency (0.0344 iterations per Watt), which we considered 100% relative efficiency and the “balanced-performance” point. At a further reduced frequency of 2.0 GHz, the solver’s iteration rate remained unchanged, power draw dropped slightly to 26.39 W, and energy efficiency increased marginally (0.0379 iterations per Watt). However, the reduced frequency did not yield substantial performance gains relative to 2.4 GHz and could increase runtime for larger, more complex cases. These results confirm that 2.4 GHz represents the optimal compromise between maintaining computational throughput and minimizing power consumption.
@@ -226,6 +245,8 @@ To identify the optimal balance between computational speed and power consumptio
 ## Test 3 : Power Save 
 
 ![WhatsApp Image 2025-11-15 at 07 42 20_25006310](https://github.com/user-attachments/assets/1e5d7664-de89-41c1-8643-00cda77bd8e8)
+
+
 
 
 # LAMMPS Findings and Analysis
