@@ -45,7 +45,7 @@ Using the LJ melt benchmark enabled us to quantify how compute-bound workloads b
 -Process/thread affinity under NUMA conditions
 -Hybrid MPI + OpenMP execution models
 
-## Aim of Running These Test Cases
+## 2. Aim of Running These Test Cases
 The primary objective of running both the OpenFOAM simpleFoam solver and the LAMMPS 3D Lennard-Jones (LJ) melt benchmark is to evaluate how distinct HPC workload types respond to system-level tuning, and to quantify how these responses influence the productivity-to-energy cost ratio. By selecting a memory-bound application (OpenFOAM) and a compute-bound application (LAMMPS), the study provides a comprehensive view across the spectrum of HPC workloads.
 
 Specifically, the aims of these experiments are as follows:
@@ -63,7 +63,43 @@ Specifically, the aims of these experiments are as follows:
  -Work Done per Joule: A measure of efficiency, indicating how much computational work is accomplished per unit of energy consumed.
 
 Through these measurements, the study identifies configurations that provide an optimal balance between performance and energy efficiency. This approach allows HPC practitioners to make informed decisions about tuning legacy hardware for sustainable, cost-effective scientific computation.
-## Parameters and Metrics Tuned in the OpenFOAM Performance Experiments
+
+## 3. Measuring Computational Efficiency and Power Consumption
+
+o accurately quantify the productivity-to-energy ratio, it is crucial to measure both computational performance and power consumption in a precise and repeatable manner. In this study, we focus on CPU-level power monitoring using the Running Average Power Limit (RAPL) interface, which provides detailed energy readings for modern Intel processors.
+
+1. Computational Efficiency
+
+Computational efficiency is measured as the amount of work completed per unit of energy consumed. For our test cases:
+
+OpenFOAM (simpleFoam): The number of timesteps completed per second, combined with total energy consumption, yields the efficiency in timesteps per joule.
+
+LAMMPS (LJ melt): The number of simulation timesteps per second is recorded, which, when normalized by energy usage, provides efficiency in iterations per joule.
+
+The general formula used is:
+
+Efficiency (work/joule) = Total Work Completed /Total Energy Consumed (J)
+
+his metric allows a direct comparison of different system configurations, CPU frequencies, and parallelization strategies, enabling the identification of the optimal productivity-to-energy point.
+
+2. Power Measurement using RAPL
+
+RAPL (Running Average Power Limit) is an energy monitoring interface built into modern Intel CPUs. It provides highly accurate estimates of the energy consumed at the CPU package level, including cores, caches, and DRAM domains. The key reasons for choosing RAPL in this study are:
+
+High Resolution and Accuracy: RAPL can report energy consumption in microjoules at intervals as short as milliseconds, allowing fine-grained power monitoring throughout the simulation.
+
+Direct CPU-Level Measurement: Unlike system-level power meters or IPMI-based sensors that measure total node power—including fans, storage, and network interfaces—RAPL focuses on the CPU and DRAM, which are the most significant contributors to HPC workload energy consumption. This ensures that the measurement reflects the true energy cost of computation rather than auxiliary subsystems.
+
+Repeatability and Consistency: Being an on-chip interface, RAPL readings are unaffected by external measurement noise or sensor placement, allowing consistent comparisons across runs and configurations.
+
+In practice, the script reads the energy_uj files under /sys/class/powercap/intel-rapl at fixed intervals (e.g., every second), calculates the total energy consumed during the simulation, and combines it with elapsed execution time to compute average power:
+
+Average Power (W) = Total Energy (J) / Elapsed Time (s)
+
+By emphasizing CPU-level power measurement with RAPL, we ensure that the study captures the core energy-performance trade-offs of HPC workloads, providing a robust basis for evaluating productivity-to-energy ratios on legacy HPC hardware such as the Lengau Cluster.  
+  
+  ​
+## 4. Parameters and Metrics Tuned in the OpenFOAM Performance Experiments
 
 During the performance and energy-efficiency evaluation of OpenFOAM, several hardware-level, system-level, and application-level parameters were deliberately tuned. These adjustments allowed us to study their direct impact on runtime, power consumption, and overall efficiency. Below is a breakdown of what was changed, why, and what behaviour it influences.
 
