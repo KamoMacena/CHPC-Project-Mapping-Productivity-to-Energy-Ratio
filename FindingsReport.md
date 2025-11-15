@@ -745,7 +745,7 @@ Below are the key performance and energy outputs collected from the RAPL logs an
 | Power Save Mode            | 5.523      | 1.414          | 1157.247        | 53.82         | 21.50           | 0.01858         |
 
 
-![WhatsApp Image 2025-11-15 at 08.14.53_8ada63f5.jpg](https://github.com/user-attachments/assets/1e5d7664-de89-41c1-8643-00cda77bd8e8)
+![WhatsApp Image 2025-11-15 at 08.14.53_8ada63f5.jpg]
 # Observations
 
 Performance mode gives highest throughput but at very high power cost.
