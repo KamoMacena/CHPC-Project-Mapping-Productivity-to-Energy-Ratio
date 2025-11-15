@@ -841,12 +841,40 @@ This matches behaviour reported in large MD scaling studies on Intel architectur
 | OpenFOAM    | Memory-bound   | Low                | Moderate         | 2.4 GHz (balanced)                |
 | LAMMPS     | Compute-bound  | High               | High             | Power-save or Balanced depending on goal |
 
-## Key insight:
- OpenFOAM benefits most from reducing communication & improving memory locality
-LAMMPS benefits most from reducing clock frequency without affecting runtime too much
+6. Conclusion: Mapping Productivity-to-Energy Ratio on Legacy HPC Systems
 
+This study demonstrates the critical interplay between computational productivity and energy consumption when executing scientific applications on repurposed legacy HPC hardware. By analyzing memory-bound (OpenFOAM) and compute-bound (LAMMPS) workloads across a range of CPU frequency and system tuning configurations, we were able to map how performance and energy efficiency are linked, providing actionable insights for sustainable high-performance computing.
 
-# LAMMPS Findings and Analysis
-## Molecular Dynamics Performance–Energy Characterization Using the 3D Lennard-Jones Melt Benchmark
+Key Findings
 
+Energy-Performance Trade-offs are Workload-Dependent
 
+Memory-bound workloads (OpenFOAM): Performance remains largely insensitive to CPU frequency, but energy consumption is highly dependent on system tuning and communication efficiency. The balanced 2.4 GHz DVFS setting achieved optimal productivity per joule, maintaining iteration rates while reducing power draw by more than 50% compared to maximum turbo frequency.
+
+Compute-bound workloads (LAMMPS): Performance scales more directly with CPU frequency. However, lowering frequency to power-save levels significantly reduced energy consumption while maintaining nearly identical timesteps per second for small-scale simulations, highlighting the efficiency potential in compute-intensive applications.
+
+Balanced Operating Points Maximize Productivity-to-Energy Ratio
+Across both applications, the mid-range DVFS frequency of 2.4 GHz emerged as the “sweet spot” for legacy HPC systems. It balances computational throughput and energy cost, demonstrating that carefully tuned legacy hardware can achieve performance levels comparable to higher-frequency operation while consuming substantially less energy.
+
+Thread and Process Affinity Enhance Energy Efficiency
+Binding threads to cores (OMP_PROC_BIND, OMP_PLACES, KMP_AFFINITY) and carefully mapping MPI processes to sockets reduces memory latency and communication overhead. For memory-bound applications, this tuning is as important as DVFS in determining energy efficiency. For compute-bound applications, it ensures predictable floating-point performance and avoids oversubscription penalties.
+
+Practical Implications for HPC Sustainability
+
+Legacy hardware can remain productive and energy-efficient: By selecting optimal DVFS frequencies and tuning system parameters, older HPC clusters can sustain high computational output at lower operational cost.
+
+Workload-specific strategies: Memory-bound and compute-bound applications respond differently to tuning. Understanding the computational characteristics of an application is essential for maximizing energy efficiency.
+
+Energy monitoring is critical: CPU-level energy monitoring via RAPL provides accurate, repeatable measurements that enable informed decisions about performance versus power trade-offs.
+
+Educational Takeaways
+
+Energy efficiency is not merely about reducing CPU frequency or throttling hardware; it requires a holistic approach encompassing workload characteristics, parallelization strategies, and hardware-level process management.
+
+Productivity-to-energy ratio is an essential metric for sustainable HPC operation. Measuring work completed per unit energy allows practitioners to identify the most cost-effective configuration for scientific computation.
+
+Balanced DVFS frequencies provide a practical compromise between performance and power, making them particularly suitable for mixed workloads where neither memory nor compute is exclusively dominant.
+
+Final Statement
+
+By mapping the productivity-to-energy ratio across multiple HPC applications and operational modes, this study demonstrates that legacy HPC systems can deliver both scientific productivity and energy efficiency when carefully tuned. These findings emphasize the importance of workload-aware system management and provide a blueprint for optimizing repurposed infrastructure, making high-performance computing more sustainable, cost-effective, and environmentally responsible.
