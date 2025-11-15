@@ -1,12 +1,18 @@
-# Introduction
+#Introduction
 
-High-Performance Computing (HPC) plays a pivotal role in advancing scientific research, enabling the simulation of complex physical systems that would otherwise be impossible to model in real time. However, running these large-scale simulations comes with a significant—and often prohibitive—energy cost. This challenge becomes even more critical when working with repurposed legacy HPC hardware, where acquisition costs are negligible, but power consumption becomes the dominant operational expense. Therefore, understanding how to maximize computational productivity while minimizing energy use is essential for sustainable, cost-effective HPC operations.
-To investigate this balance between performance and energy efficiency, this study focuses on two widely used scientific applications that represent contrasting computational workloads:
+High-Performance Computing (HPC) is a cornerstone of modern scientific research, enabling simulations of complex physical systems that would be otherwise impossible to model in real time. However, the operation of HPC systems comes with substantial energy costs, which can become a limiting factor, particularly when working with repurposed legacy hardware. While such hardware carries minimal acquisition costs, the energy required to run simulations often dominates operational expenses. Consequently, understanding how to maximize computational productivity while minimizing energy consumption is critical for sustainable and cost-effective HPC practices.
 
-- **OpenFOAM,** a computational fluid dynamics (CFD) framework that is primarily memory-bound, stressing the memory hierarchy, cache system, and interconnect.
- -**LAMMPS**, a molecular dynamics (MD) simulator that is mostly compute-bound, stressing floating-point execution units and CPU frequency scaling.
-By selecting these two applications, the study covers both ends of the HPC workload spectrum, enabling a deeper understanding of how different types of algorithms respond to changes in system-level parameters such as CPU frequency, parallelization strategy, and thread/process binding.
+This research aims to map the productivity-to-energy cost ratio for different scientific applications running on repurposed legacy HPC hardware. In this context, productivity is defined as the rate at which useful computational work is completed, measured through application-specific metrics such as iterations per second or timesteps per second. Energy cost refers to the total electrical energy consumed during computation, measured in joules or watt-hours. Both productivity and energy consumption are influenced by several factors, including CPU frequency, parallelization strategy, memory bandwidth, solver configurations, and thread/process placement.
 
+To explore this relationship, the study focuses on two widely used HPC applications that represent contrasting computational workloads:
+
+OpenFOAM, a computational fluid dynamics (CFD) framework that is primarily memory-bound, stressing the memory hierarchy, cache system, and interconnect.
+
+LAMMPS, a molecular dynamics (MD) simulator that is primarily compute-bound, stressing floating-point execution units and CPU frequency scaling.
+
+By selecting these applications, the study spans the spectrum of HPC workloads, providing insight into how memory-bound and compute-bound algorithms respond to system-level tuning, including CPU frequency scaling, parallelization strategies, and thread/process placement.
+
+The experiments are conducted on the Lengau Cluster, a high-performance computing platform designed to support a variety of scientific workloads. Using this infrastructure allows us to measure real-world performance and energy characteristics of legacy hardware under controlled conditions, providing practical insights into achieving energy-efficient computation without sacrificing productivity. The results of this study will guide HPC practitioners in optimizing repurposed hardware for sustainable, high-productivity operation, highlighting the trade-offs between computational throughput and energy consumption.
 ## Test Cases Used in the Study
 
 #### 1. OpenFOAM: simpleFoam Steady-State Test Case
@@ -103,6 +109,31 @@ MPI --bind-to core and --map-by socket:PE=$OMP_NUM_THREADS ensure each MPI rank 
 
 
 This enabled us to identify the performance sweet spot and the energy-optimal point for each application.
+
+
+### Test 2: Balanced Performance Mode Configuration (2.4 GHz DVFS Setting)
+
+To achieve a balanced operating mode—one that provides good performance at significantly reduced power draw—the script includes a CPU frequency control section that forces the processors to run at a fixed mid-range frequency of 2.4 GHz. This frequency was selected because it typically represents the “knee” of the DVFS curve:
+
+Lower frequencies reduce power but often degrade time-to-solution sharply.
+Higher frequencies improve performance but increase power disproportionately.
+A mid-range value like 2.4 GHz provides an excellent compromise.
+
+For each CPU core, the script:
+   -Reads available hardware frequencies
+   -Finds the closest value to 2.4 GHz
+   -Writes that value to the CPU’s scaling_setspeed file
+   
+We also set the OMP_PROC_BIND=close this ensures that  OpenMP threads stay on their assigned cores.
+OMP_PLACES=cores Each thread is placed on a physical core to avoid SMT interference.
+
+KMP_AFFINITY=compact,granularity=fine this Helps threads share cache efficiently and reduce memory latency.
+MPI mapping
+OpenFOAM Solver-Level Tunings for Energy Stability
+At fixed frequency, some solver parameters can reduce unnecessary iterations.
+We Increase under-relaxation slightly to 0.3 → 0.5 for U to ensure a faster convergence and less iteration time.We configured the MpI rank to reduce the communication overhead 
+
+
 2. Compare Memory-Bound vs Compute-Bound Behavior
 
 By using one memory-bound and one compute-bound test case, we aimed to determine:
@@ -111,24 +142,22 @@ Which parameters influence each workload most strongly
 Whether optimal energy-efficient settings differ between CFD and MD simulations
 How parallelization strategies and CPU frequency scaling shift between the two application types
 
-3. Develop a Framework for Energy-Aware HPC Benchmarking
 
-The goal was not just to collect data but to establish a reproducible methodology that future users of repurposed hardware can apply, including:
-   -How to tune system parameters using Slurm job scripts
-   -How to measure power consumption in real time
-   -How to generate reliable productivity-per-watt metrics
-   -How to interpret scaling curves in an energy-aware context
+## Results: Productivity vs. Energy Efficiency
 
-4. Provide Practical Guidance for Running Scientific Codes on Legacy Hardware
+To identify the optimal balance between computational speed and power consumption, we tested OpenFOAM under several fixed CPU clock frequencies. Table 1 summarizes the results, showing the effect of frequency scaling on iterations per second, average power draw, and energy efficiency. At the maximum turbo frequency of 3.5 GHz, the solver achieved 250 iterations per second, but at a high average power of 60.25 W, resulting in relatively low energy efficiency (0.0166 iterations per Watt, or 90% relative efficiency). Reducing the CPU frequency to 2.4 GHz maintained the same iteration rate while significantly reducing power consumption to 28.99 W. This setting provided the best overall energy efficiency (0.0344 iterations per Watt), which we considered 100% relative efficiency and the “balanced-performance” point. At a further reduced frequency of 2.0 GHz, the solver’s iteration rate remained unchanged, power draw dropped slightly to 26.39 W, and energy efficiency increased marginally (0.0379 iterations per Watt). However, the reduced frequency did not yield substantial performance gains relative to 2.4 GHz and could increase runtime for larger, more complex cases. These results confirm that 2.4 GHz represents the optimal compromise between maintaining computational throughput and minimizing power consumption.
 
-Legacy HPC systems often have lower efficiency per watt than modern hardware. However, by tuning:
 
-CPU frequency governors
-MPI process placement
-Thread affinity and NUMA policy
-Solver tolerances
-Domain decomposition
+| CPU Frequency (GHz) | Iterations/s | Avg Power (Watts) | Energy Efficiency (Iter/s per Watt) | Relative Efficiency | Iterations Per Joule
+|--------------------|--------------|-----------------|------------------------------------|------------------|----------------------|
+| Max Turbo (3.5)    | 250          |   60.25 W       | 0.0166 I/W                         | 90%              | 0,0040               |
+| Optimal (2.4)      | 250          | 28.99 W         | 0,0344                             | 100%             |0.0049               |
+| Low (2.0)          | 250          |  26.39 W        | 0.0379                             | 98%              |0,0070               |
+ 
+ Table 2 : Showing The avarage power and Iteration per Joules in 3 different CPU frequencies 
 
-it is still possible to run them cost-effectively.
+## Test 3 : Power Save 
 
-The aim of this research was to deliver actionable, data-driven recommendations for how to operate legacy clusters at minimum energy cost while maintaining acceptable scientific throughput.
+![WhatsApp Image 2025-11-15 at 07 42 20_25006310](https://github.com/user-attachments/assets/1e5d7664-de89-41c1-8643-00cda77bd8e8)
+
+
