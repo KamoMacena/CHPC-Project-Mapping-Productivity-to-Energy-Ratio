@@ -744,8 +744,8 @@ Below are the key performance and energy outputs collected from the RAPL logs an
 | Balanced Mode (2.4 GHz)    | 6.112      | 1.588          | 1320.554        | 61.45         | 21.51           | 0.01629         |
 | Power Save Mode            | 5.523      | 1.414          | 1157.247        | 53.82         | 21.50           | 0.01858         |
 
+![WhatsApp Image 2025-11-15 at 08 14 53_b6df75b9](https://github.com/user-attachments/assets/36008657-1975-44ba-b553-b6047e166050)
 
-![WhatsApp Image 2025-11-15 at 08.14.53_8ada63f5.jpg]
 # Observations
 
 Performance mode gives highest throughput but at very high power cost.
