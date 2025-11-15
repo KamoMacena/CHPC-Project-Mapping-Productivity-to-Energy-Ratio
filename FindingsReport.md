@@ -247,9 +247,6 @@ To identify the optimal balance between computational speed and power consumptio
 
 ![WhatsApp Image 2025-11-15 at 07 42 20_25006310](https://github.com/user-attachments/assets/1e5d7664-de89-41c1-8643-00cda77bd8e8)
 
-
-
-
 # LAMMPS Findings and Analysis
 ## Molecular Dynamics Performance–Energy Characterization Using the 3D Lennard-Jones Melt Benchmark
 
@@ -280,7 +277,8 @@ Consistent problem size (100 timesteps of the LJ melt case)
 Below are the exact scripts (trimmed for clarity but structurally intact) executed for the three modes. These scripts capture all power/performance tuning parameters.
 
 ## 5.1.1 Performance Mode Script (Max Frequency)
-`#!/usr/bin/env bash
+``` bash
+#!/usr/bin/env bash
 #===========================================
 #LAMMPS parallel benchmark (Performance Mode)
 #with RAPL power logging and performance summary
@@ -437,11 +435,13 @@ echo "Efficiency (s/J): $EFF_S_PER_J"
 } > "$OUTDIR/efficiency_summary.txt"
 
 echo "=== DONE (Performance Mode) ==="
-echo "Results stored in: $OUTDIR" 
-`
+echo "Results stored in: $OUTDIR"
 
+``` 
 ## 5.1.2 Balanced Mode Script (Fixed 2.4 GHz DVFS)
-`#!/bin/bash
+
+```
+#!/bin/bash
 #MweLammps_Balance.sh
 #Run LAMMPS in Balanced Mode and produce a full efficiency summary.
 
@@ -590,24 +590,24 @@ echo "M atom-step/s: $MATOMSTEP"
 echo "Efficiency (s/J): $EFFICIENCY"
 } > "$SUMMARY"
 
-echo "Efficiency summary saved to $SUMMARY"`
-
+echo "Efficiency summary saved to $SUMMARY"
+``` 
 ## 5.1.3 Power Save Mode Script (Minimum Frequency + Reduced Load)
-`#!/usr/bin/env bash
-#===========================================
-#LAMMPS parallel benchmark (Energy-saving Mode)
-#with RAPL power logging and performance summary
-#===========================================
+``` # !/usr/bin/env bash
+# ===========================================
+# LAMMPS parallel benchmark (Energy-saving Mode)
+# with RAPL power logging and performance summary
+# ===========================================
 
 set -euo pipefail
 IFS=$'\n\t'
 
-#--- SLURM / job defaults ---
+# --- SLURM / job defaults ---
 SLURM_NTASKS=${SLURM_NTASKS:-16}
 JOB_NAME=${SLURM_JOB_NAME:-LAMMPS_Energy}
 NODELIST=$(scontrol show hostnames 2>/dev/null || hostname)
 
-#--- Timestamped output directory ---
+# --- Timestamped output directory ---
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 OUTDIR="$(pwd)/results/run_${TIMESTAMP}"
 mkdir -p "$OUTDIR"
@@ -733,6 +733,7 @@ echo "Efficiency (s/J): $EFF_S_PER_J"
 
 echo "=== DONE (Energy Mode) ==="`
 
+```
 # 5.2 LAMMPS Results Summary (All Modes)
 
 Below are the key performance and energy outputs collected from the RAPL logs and LAMMPS timing outputs.
@@ -841,5 +842,9 @@ This matches behaviour reported in large MD scaling studies on Intel architectur
 ## Key insight:
  OpenFOAM benefits most from reducing communication & improving memory locality
 LAMMPS benefits most from reducing clock frequency without affecting runtime too much
+
+
+# LAMMPS Findings and Analysis
+## Molecular Dynamics Performance–Energy Characterization Using the 3D Lennard-Jones Melt Benchmark
 
 
