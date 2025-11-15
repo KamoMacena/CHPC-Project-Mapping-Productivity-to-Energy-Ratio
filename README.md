@@ -115,9 +115,17 @@ Table 9: MPI Information
 | MPI Implementation | OpenMPI 4.1.6 |
 | Path | /opt/ohpc/pub/mpi/openmpi4-gnu12/4.1.6/bin/mpirun |
 
+
 This comprehensive system profiling establishes a baseline for understanding the hardware constraints and software dependencies influencing productivity and energy efficiency. It also enables consistent, reproducible benchmarking and facilitates direct correlation between system parameters, performance, and energy consumption.
 
-## 3. Key System-Level Parameters Parameters and Their Impact
+
+## 3. Key System-Level Parameters and Their Impact
+
+Understanding the hardware characteristics of HPC nodes is critical when evaluating both computational performance and energy efficiency. Modern compute nodes are complex systems, and application behavior is influenced not just by raw CPU speed, but also by how tasks are scheduled, memory is accessed, and threads are distributed across cores. To systematically explore these effects, this study focuses on several key system-level parameters that directly govern the balance between throughput and energy consumption.
+
+By carefully controlling and monitoring these parameters, it becomes possible to quantify the **productivity-to-energy ratio**, which measures the amount of useful computational work achieved per unit of energy. Adjustments to these parameters allow researchers to identify configurations that either maximize performance, minimize energy use, or strike a balance between the two.
+
+The following parameters were considered in this study:
 
 **CPU Behavior:** The CPU frequency and its scaling behavior determine the processing speed and energy consumption of the node. Jobs can request a **performance governor** to maintain a high and stable frequency, maximizing throughput, or a **powersave governor** to reduce frequency and conserve energy. If administrative permissions restrict changing the governor, the current frequency and turbo state are recorded to ensure results can be accurately interpreted.
 
