@@ -415,7 +415,7 @@ echo "Efficiency (s/J): $EFF_S_PER_J"
 } > "$OUTDIR/efficiency_summary.txt"
 
 echo "=== DONE (Performance Mode) ==="
-echo "Results stored in: $OUTDIR" `
+echo "Results stored in: $OUTDIR" 
 
 ## 5.1.2 Balanced Mode Script (Fixed 2.4 GHz DVFS)
 `#!/bin/bash
