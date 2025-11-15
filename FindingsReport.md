@@ -46,17 +46,23 @@ Using the LJ melt benchmark enabled us to quantify how compute-bound workloads b
 -Hybrid MPI + OpenMP execution models
 
 ## Aim of Running These Test Cases
+The primary objective of running both the OpenFOAM simpleFoam solver and the LAMMPS 3D Lennard-Jones (LJ) melt benchmark is to evaluate how distinct HPC workload types respond to system-level tuning, and to quantify how these responses influence the productivity-to-energy cost ratio. By selecting a memory-bound application (OpenFOAM) and a compute-bound application (LAMMPS), the study provides a comprehensive view across the spectrum of HPC workloads.
 
-The objective of running both simpleFoam and the LJ melt benchmark was to evaluate how different HPC workload types respond to system-level tuning, and how these responses translate into productivity-to-energy cost ratios. Specifically, the aims were:
+Specifically, the aims of these experiments are as follows:
 
-### 1.Measure the Trade-off Between Performance and Energy Consumption
+ - Measure the Trade-Off Between Performance and Energy Consumption
 
-We manipulated CPU frequency, parallelization strategy, and execution layout to observe how each parameter affects:
--Execution time
--Power draw
--Total energy consumed
--Work done per joule
+  By systematically adjusting key system parameters—including CPU frequency, parallelization strategy, and process/thread placement—we aim to understand their impact on:
 
+ -Execution Time: How long the workload takes to complete under different configurations.
+
+-Power Draw: The instantaneous and average electrical power consumed during execution.
+
+ -Total Energy Consumed: The cumulative energy used, integrating power over time.
+
+ -Work Done per Joule: A measure of efficiency, indicating how much computational work is accomplished per unit of energy consumed.
+
+Through these measurements, the study identifies configurations that provide an optimal balance between performance and energy efficiency. This approach allows HPC practitioners to make informed decisions about tuning legacy hardware for sustainable, cost-effective scientific computation.
 ## Parameters and Metrics Tuned in the OpenFOAM Performance Experiments
 
 During the performance and energy-efficiency evaluation of OpenFOAM, several hardware-level, system-level, and application-level parameters were deliberately tuned. These adjustments allowed us to study their direct impact on runtime, power consumption, and overall efficiency. Below is a breakdown of what was changed, why, and what behaviour it influences.
