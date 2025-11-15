@@ -413,7 +413,87 @@ Benchmark performance (Timesteps/s) and average power consumption (Watts) were m
 
 > The results show that the **highest raw computational performance** is achieved at the maximum turbo frequency of 3.5 GHz. However, **optimal energy efficiency**—defined as the highest ratio of timesteps per second per Watt—is achieved at 2.0 GHz, highlighting the inherent trade-off between performance and power consumption. While higher frequencies deliver faster simulation results, they consume disproportionately more energy, making moderate frequencies more favorable for energy-aware HPC operation.
 
+## 4.1 Performance-Oriented Configuration
 
+In high-performance computing (HPC) research, some experiments prioritize **maximizing computational speed and simulation throughput**. This configuration focuses on achieving the shortest runtime and the highest performance possible, often at the cost of increased power consumption. It is particularly useful when runtime is critical, such as large-scale simulations or time-sensitive studies.
+
+### 4.1.1 Maximum CPU Frequency
+Running the CPU at its maximum frequency ensures that each core delivers the highest computational throughput.  
+
+- **Impact on performance:** Higher clock speeds allow more instructions per second, reducing the time required for each simulation step.  
+- **Scientific reasoning:** Many numerical methods, including molecular dynamics simulations, are CPU-bound. Therefore, increasing frequency directly improves performance.  
+- **Practical implementation:** Use performance-oriented CPU governors or manual frequency scaling tools (e.g., `cpupower frequency-set --governor performance`) to ensure the CPU stays at peak frequency.
+
+### 4.1.2 Aggressive Solver Settings
+In this configuration, solver parameters are tuned to prioritize speed over conservative stability.  
+
+- **Examples of aggressive tuning:**  
+  - Larger time steps in molecular dynamics integration.  
+  - Reduced accuracy thresholds for iterative solvers.  
+  - Skipping optional stability checks or corrections that slow down computation.  
+- **Energy and performance trade-off:** While aggressive settings may increase the risk of instability or slightly reduce accuracy, they significantly reduce computation time per step, which is ideal when speed is critical.
+
+### 4.1.3 Optimized Parallel Decomposition
+Efficient use of computational resources is essential for high performance. Optimized parallel decomposition ensures that the workload is distributed effectively across all cores and nodes.  
+
+- **Domain decomposition:** Split the simulation box into subdomains that each MPI rank or thread handles.  
+- **Load balancing:** Evenly distribute particles or computational work to prevent idle cores.  
+- **Communication optimization:** Minimize inter-process communication and overlap communication with computation wherever possible.  
+- **Energy consideration:** Although this configuration uses more cores at maximum speed, optimized decomposition ensures that no cores are idle, improving the energy-to-solution ratio for high-performance runs.
+
+### 4.1.4 Minimal I/O Operations
+Frequent input/output operations can bottleneck performance, even on high-speed clusters.  
+
+- **Strategies:**  
+  - Reduce the frequency of writing checkpoints or trajectory data.  
+  - Aggregate outputs to minimize disk access.  
+  - Store only critical simulation data required for analysis.  
+- **Performance benefit:** Limiting I/O overhead allows the CPU and memory subsystem to focus on computation, maximizing simulation speed.  
+- **Energy consideration:** Although I/O is less significant compared to computation, minimizing unnecessary writes reduces energy consumption slightly and prevents potential slowdowns caused by I/O latency.
+
+### Summary
+The performance-oriented configuration aims to **maximize computational throughput**. By using maximum CPU frequency, aggressive solver settings, optimized parallel decomposition, and minimal I/O, this setup achieves the fastest possible simulation times. This approach is ideal when speed is critical, but it usually consumes more energy compared to power-efficient configurations. It is suitable for time-sensitive experiments or large-scale simulations where runtime dominates research objectives.
+
+---
+## 4.2 Power-Efficient Configuration
+
+When designing experiments with energy efficiency in mind, the objective shifts from achieving maximum computational speed to **optimizing simulations for minimal power consumption without compromising accuracy**. This configuration is essential for sustainable high-performance computing, especially in research environments where energy cost and environmental impact matter.
+
+### 4.2.1 Reduced CPU Frequency
+Running CPUs at full frequency maximizes performance but also increases energy usage significantly. In the power-efficient configuration, the CPU frequency is deliberately lowered.  
+
+- **Impact on performance:** Lower frequency slows down computation slightly, but it significantly reduces the power draw per core.  
+- **Scientific reasoning:** Energy usage is roughly proportional to the cube of voltage/frequency. Reducing frequency reduces dynamic power dissipation and thermal stress, which can also improve long-term hardware stability.  
+- **Practical implementation:** Modern processors allow software or OS-level frequency capping, often using tools like `cpupower` or CPU governors (`powersave` mode).
+
+### 4.2.2 Conservative Solver Settings
+The solver is the part of the simulation engine responsible for calculating forces, integrating motion, and updating particle positions. Using conservative settings focuses on stability and accuracy rather than raw speed.  
+
+- **Example adjustments:**  
+  - Smaller time steps to prevent numerical errors.  
+  - Avoiding aggressive approximations or shortcuts that speed up computation but may require re-computation or introduce instabilities.  
+- **Energy rationale:** Stable and conservative settings prevent wasted computation from error corrections or unstable runs. While each step may take slightly longer, the total energy consumed per reliable simulation can be lower.
+
+### 4.2.3 Coarse-Grained Parallelism
+Instead of using the maximum number of CPU cores or MPI ranks, coarse-grained parallelism uses **fewer, well-utilized cores**, balancing workload efficiency and energy consumption.  
+
+- **Why it matters:** Using too many cores can create idle or underutilized threads, which still consume power but do not contribute meaningfully to the simulation.  
+- **Communication overhead:** Reducing the number of cores decreases the amount of inter-process communication, which is energy-intensive.  
+- **Implementation:** Carefully match MPI ranks and OpenMP threads to the problem size. For smaller simulations, fewer ranks with more threads per rank can be more energy-efficient.
+
+### 4.2.4 Efficient I/O Strategies
+Input/output operations can be surprisingly expensive in terms of energy. Writing large amounts of data frequently consumes CPU cycles, memory bandwidth, and disk power.  
+
+- **Optimization approaches:**  
+  - Reduce output frequency: Write data only at necessary intervals.  
+  - Batch I/O: Group multiple results into single write operations instead of frequent small writes.  
+  - Selective logging: Save only essential variables rather than the entire system state.  
+- **Energy benefit:** Less frequent and optimized I/O reduces unnecessary disk and memory usage, lowering total energy consumption.
+
+### Summary
+The power-efficient configuration is a **carefully balanced approach** that trades some speed for substantial energy savings. By reducing CPU frequency, using conservative solver settings, running fewer well-utilized cores, and minimizing I/O overhead, simulations maintain accuracy while consuming less power.  
+
+This approach is critical in research environments aiming to **minimize environmental impact and operational costs** while still performing high-fidelity simulations.
 
 
 ## 4.3 Summary of Correlation to Hardware Characteristics
@@ -428,3 +508,91 @@ Benchmark performance (Timesteps/s) and average power consumption (Watts) were m
 
 > LAMMPS benefits from running closer to the CPU's compute peak, while OpenFOAM efficiency drops rapidly after exceeding a lower frequency threshold due to memory bottlenecks limiting performance while power continues to climb.
 
+---
+## 5. Data Collection & Analysis
+
+In this research, careful data collection and analysis is essential to evaluate the trade-offs between performance and energy efficiency. By systematically measuring key metrics during simulations, we can quantify how different configurations affect runtime, energy consumption, and resource utilization.
+
+### 5.1 Metrics to Collect
+
+The selection of metrics is based on their ability to quantify **performance bottlenecks, energy cost, and parallel efficiency**. Each metric is described below, along with its scientific relevance, measurement methodology, and expected analytical outcomes.
+
+#### 5.1.1 Execution Time
+Execution time represents the wall-clock duration required to complete a simulation or a computational task. 
+It is a direct measure of performance efficiency. By analyzing execution times across varying configurations, one can identify the scaling behavior and computational limits of the simulation framework. Shorter runtimes suggest better utilization of computing resources.  
+ Execution time can be measured using system timers or job scheduler logs. For example:  
+  ```bash
+  time mpirun -np 16 lmp_mpi -in in.lj
+````
+High-resolution timers capture both computation and communication overheads.
+Analysis: Compare execution times across different parallelization strategies to identify optimal configurations.
+
+#### 5.1.2 Energy Consumption
+
+The total energy used by the CPU, memory, and other system components during simulation.
+
+Energy consumption directly impacts operational cost and sustainability in HPC.
+
+Practical measurement:
+
+Intel RAPL interface:
+```bash
+grep -i energy /sys/class/powercap/intel-rapl/*/energy_uj
+````
+
+External power meters for node-level measurements.
+
+Analysis: Calculate energy-to-solution metrics to understand the trade-off between performance and power efficiency.
+
+
+### 5.1.3 CPU Utilization
+
+CPU utilization measures the fraction of CPU cycles actively used for computation versus idle or waiting.  
+ High CPU utilization indicates that cores are performing useful work. Low utilization may indicate load imbalance, excessive synchronization, or memory bottlenecks.  
+
+Practical measurement: Use system tools like htop, mpstat, or perf:
+
+- Tools like `mpstat` or `htop` show real-time utilization:  
+    ```bash
+    mpstat -P ALL 1
+    ```  
+  - Performance counters provide per-thread/core metrics for finer analysis.  
+- **Analysis considerations (expanded):**  
+  - Identify cores that are underutilized due to poor domain decomposition in MPI simulations.  
+  - Correlate CPU utilization with memory and network metrics to determine whether the simulation is computation-bound, memory-bound, or communication-bound.  
+  - High idle times suggest opportunities to optimize parallelization or adjust thread allocation.  
+  - CPU utilization trends over time can reveal whether workloads are evenly distributed throughout the simulation or if there are temporal hotspots.
+ 
+  - 
+#### 5.1.4 Memory Bandwidth Usage
+
+-  Memory bandwidth usage quantifies the rate at which data is transferred between main memory and the CPU.  
+- Memory-bound applications are limited by the speed of data movement rather than computation. Understanding bandwidth usage helps identify memory bottlenecks and improve cache efficiency.  
+- **Measurement methodology:**  
+  - Profiling tools such as `perf`, `Intel VTune`, or `pcm-memory` can measure bytes per second transferred, cache misses, and memory stall cycles.  
+- **Analysis consideration:**  
+  - Identify memory-intensive kernels in the simulation that dominate execution time.  
+  - Evaluate how different thread counts or MPI ranks affect memory access patterns.  
+  - Correlate memory usage with CPU utilization and execution time to detect whether the application is compute- or memory-bound.  
+  - Optimize memory locality using thread/core binding to reduce cross-socket memory traffic.
+
+---
+## 6. Expected Outcomes
+
+By conducting these experiments, we anticipate uncovering a clear picture of how different parallelization and configuration strategies affect both performance and energy efficiency. Key expected results include:
+
+- **Quantitative Performance vs. Power Insights:** Detailed measurements will reveal the trade-offs between runtime acceleration and energy consumption, helping to identify scenarios where maximum performance might come at a disproportionate energy cost.  
+- **Identification of Influential Parameters:** Through systematic testing, it will be possible to pinpoint which parallelization settings—such as MPI ranks, OpenMP threads, or CPU frequency—have the strongest impact on overall efficiency.  
+- **Energy-Aware Optimization Guidelines:** The findings will provide actionable recommendations for configuring high-performance simulations in a way that balances speed and energy usage, supporting researchers who must operate under strict energy budgets or sustainability goals.  
+
+These outcomes are intended to bridge the gap between raw computational power and practical energy-conscious high-performance computing.
+
+## 7. Tools & Scripts
+
+To carry out this study efficiently, a combination of automation and monitoring tools will be employed:
+
+- **Power Measurement Scripts:** Custom scripts using interfaces like RAPL or IPMI will record fine-grained energy usage across CPU, memory, and other components during simulation runs.  
+- **Benchmark Automation:** Bash and Python scripts will automate the execution of multiple configurations, ensuring consistent, reproducible experiments while systematically varying parameters like thread count or solver settings.  
+- **Data Processing and Visualization:** Collected data will be analyzed using Python (pandas, matplotlib, seaborn) to generate clear visualizations of performance and energy trends, enabling both quantitative comparison and intuitive understanding of trade-offs.  
+
+Together, these tools and scripts will provide a robust framework for capturing meaningful insights into the interplay between computational performance and energy efficiency.
