@@ -176,23 +176,29 @@ This enabled us to identify the performance sweet spot and the energy-optimal po
 
 To achieve a balanced operating mode—one that provides good performance at significantly reduced power draw—the script includes a CPU frequency control section that forces the processors to run at a fixed mid-range frequency of 2.4 GHz. This frequency was selected because it typically represents the “knee” of the DVFS curve:
 
-Lower frequencies reduce power but often degrade time-to-solution sharply.
-Higher frequencies improve performance but increase power disproportionately.
-A mid-range value like 2.4 GHz provides an excellent compromise.
+   -Lower frequencies reduce power but often degrade time-to-solution sharply.
+   -Higher frequencies improve performance but increase power disproportionately.
+    -A mid-range value like 2.4 GHz provides an excellent compromise.
 
-For each CPU core, the script:
-   -Reads available hardware frequencies
-   -Finds the closest value to 2.4 GHz
-   -Writes that value to the CPU’s scaling_setspeed file
-   
+| Parameter     | Setting                                 |
+| ------------- | --------------------------------------- |
+| CPU Frequency | Minimum allowed freq                    |
+| DVFS Governor | powersave                               |
+| MPI Tasks     | Reduced to lower communication pressure |
+| OMP Bindings  | Same as previous tests                  |
+
+Table 2: Showing System parameters that were configured 
 We also set the OMP_PROC_BIND=close this ensures that  OpenMP threads stay on their assigned cores.
 OMP_PLACES=cores Each thread is placed on a physical core to avoid SMT interference.
 
-KMP_AFFINITY=compact,granularity=fine this Helps threads share cache efficiently and reduce memory latency.
+We set KMP_AFFINITY=compact, granularity=fine this Helps threads share cache efficiently and reduce memory latency.
 MPI mapping
 OpenFOAM Solver-Level Tunings for Energy Stability
 At fixed frequency, some solver parameters can reduce unnecessary iterations.
 We Increase under-relaxation slightly to 0.3 → 0.5 for U to ensure a faster convergence and less iteration time.We configured the MpI rank to reduce the communication overhead 
+
+
+
 
 
 2. Compare Memory-Bound vs Compute-Bound Behavior
