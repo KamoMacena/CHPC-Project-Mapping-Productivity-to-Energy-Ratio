@@ -258,7 +258,7 @@ Consistent problem size (100 timesteps of the LJ melt case)
 Below are the exact scripts (trimmed for clarity but structurally intact) executed for the three modes. These scripts capture all power/performance tuning parameters.
 
 ## 5.1.1 Performance Mode Script (Max Frequency)
-`#!/usr/bin/env bash
+```#!/usr/bin/env bash
 #===========================================
 #LAMMPS parallel benchmark (Performance Mode)
 #with RAPL power logging and performance summary
@@ -415,7 +415,7 @@ echo "Efficiency (s/J): $EFF_S_PER_J"
 } > "$OUTDIR/efficiency_summary.txt"
 
 echo "=== DONE (Performance Mode) ==="
-echo "Results stored in: $OUTDIR"`
+echo "Results stored in: $OUTDIR" ```
 
 ## 5.1.2 Balanced Mode Script (Fixed 2.4 GHz DVFS)
 `#!/bin/bash
