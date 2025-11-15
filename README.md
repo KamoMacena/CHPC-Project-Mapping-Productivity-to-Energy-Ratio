@@ -619,3 +619,36 @@ To carry out this study efficiently, a combination of automation and monitoring 
 - **Data Processing and Visualization:** Collected data will be analyzed using Python (pandas, matplotlib, seaborn) to generate clear visualizations of performance and energy trends, enabling both quantitative comparison and intuitive understanding of trade-offs.  
 
 Together, these tools and scripts will provide a robust framework for capturing meaningful insights into the interplay between computational performance and energy efficiency.
+
+# 8. Conclusion
+
+This study systematically evaluated the interplay between computational productivity and energy consumption on repurposed legacy HPC hardware, using representative memory-bound (OpenFOAM) and compute-bound (LAMMPS) applications. By carefully controlling CPU frequency, thread placement, NUMA memory policies, and parallelization strategies, we quantified the productivity-to-energy ratio, providing a nuanced understanding of how system configuration impacts both performance and power efficiency.
+
+## Key insights from this investigation include:
+
+Workload-Specific Energy-Performance Trade-offs:
+
+Memory-bound applications like OpenFOAM exhibit limited performance gains at higher CPU frequencies, while energy consumption increases disproportionately. Optimal energy efficiency occurs at moderate frequencies, emphasizing the dominant role of memory bandwidth and latency.
+
+Compute-bound applications like LAMMPS benefit from higher CPU frequencies, but energy-efficient configurations can still achieve substantial performance while reducing power consumption.
+
+Identification of Optimal Operating Points:
+Systematic tuning revealed frequency and parallelization settings that maximize productivity per unit of energy. For both applications, intermediate CPU frequencies combined with proper core pinning and NUMA-local memory allocation achieved the best balance between throughput and power draw, underscoring the value of energy-aware configuration over raw performance maximization.
+
+Correlation with Hardware Characteristics:
+LAMMPS efficiency correlates strongly with floating-point performance, whereas OpenFOAM efficiency depends more on memory bandwidth and interconnect performance. This highlights that energy-aware HPC optimization must be application-specific, aligning hardware resources with workload characteristics to maximize sustainability without sacrificing scientific accuracy.
+
+Framework for Energy-Conscious HPC Practices:
+The methodology—integrating performance profiling, energy measurement via RAPL, and automated benchmarking—establishes a reproducible approach for evaluating productivity-to-energy trade-offs. This framework supports evidence-based decisions for scheduling, hardware utilization, and application tuning, providing practical guidance for HPC operators and researchers aiming to reconcile high computational throughput with energy efficiency.
+
+# Educational Implications
+
+This study demonstrates that sustainable HPC is achievable even on legacy systems through informed configuration and workload-aware optimization. By prioritizing productivity per unit energy rather than raw speed alone, researchers and system administrators can:
+
+Reduce operational costs and environmental impact
+
+Extend the usable life of legacy hardware
+
+Achieve scientifically reliable results without unnecessary energy expenditure
+
+In conclusion, energy-aware high-performance computing is not a compromise but an opportunity: legacy HPC systems, when carefully tuned, can deliver substantial scientific output while minimizing power consumption. This work provides both a conceptual framework and practical guidance for integrating energy efficiency into routine HPC workflows, paving the way for more sustainable, cost-effective, and environmentally responsible scientific computation.
