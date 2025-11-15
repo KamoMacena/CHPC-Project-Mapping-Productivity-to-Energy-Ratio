@@ -51,7 +51,35 @@ We manipulated CPU frequency, parallelization strategy, and execution layout to 
 -Total energy consumed
 -Work done per joule
 
-## OpenFOAM TUNNING 
+## Parameters and Metrics Tuned in the OpenFOAM Performance Experiments
+
+During the performance and energy-efficiency evaluation of OpenFOAM, several hardware-level, system-level, and application-level parameters were deliberately tuned. These adjustments allowed us to study their direct impact on runtime, power consumption, and overall efficiency. Below is a breakdown of what was changed, why, and what behaviour it influences.
+
+
+
+
+We first looked into perfomance 
+
+
+### Table 1: Tuned System and Application Parameters for Perfomance OpenFOAM Benchmarking
+
+| Parameter / Setting                     | Applied Value                            | Purpose / Role                                         | Reason / Expected Effect                                                                 |
+|----------------------------------------|------------------------------------------|--------------------------------------------------------|------------------------------------------------------------------------------------------|
+| `SLURM_NTASKS`                          | 4 (default, adjustable per test)         | Number of MPI processes                                | Controls parallel decomposition; balances workload across CPU cores                       |
+| `OMP_NUM_THREADS`                       | 1                                        | Threads per MPI process                                 | Limits OpenMP thread count to reduce oversubscription and simplify core mapping           |
+| `OMP_PROC_BIND`                          | `close`                                  | Prevents OpenMP threads from moving between cores      | Reduces cache misses and improves data locality                                          |
+| `OMP_PLACES`                             | `cores`                                  | Assigns threads to physical CPU cores                  | Ensures L1/L2 cache reuse and prevents thread contention                                 |
+| `KMP_AFFINITY`                           | `compact,1,0,granularity=fine`          | Controls how Intel OpenMP threads are placed           | Compact placement reduces memory latency; fine granularity binds threads to individual cores |
+| MPI `--bind-to core`                      | Enabled                                  | Fixes each MPI rank to a physical core                 | Avoids process migration and improves cache locality                                     |
+| MPI `--map-by socket:PE=$OMP_NUM_THREADS`| Socket mapping per thread count          | Distributes MPI ranks across sockets                   | Reduces cross-socket memory access; aligns threads with NUMA-local memory                |
+| Decomposition Method (`decomposeParDict`)| `scotch`                                 | Determines domain decomposition for parallel mesh      | Minimizes processor boundaries and balances load across subdomains                       |
+| Memory Settings (`cacheCoherent`, `memory`)| `0.8`, `low`                             | Hardware-specific cache/memory optimization            | Reduces memory overhead and improves cache utilization for solver performance            |
+| Power Monitoring Interval (`RAPL_INTERVAL`)| 0.1 s                                    | Frequency of energy measurement                        | Provides high-resolution energy consumption data for productivity-to-energy calculations |
+
+
+
+
+Tkjjo ensure predictable performance and minimize unnecessary overhead, we carefully tuned several thread-affinity and process-mapping parameters that control how OpenMP threads and MPI ranks are placed on CPU cores. First, we enabled OMP_PROC_BIND=close, which prevents OpenMP threads from migrating between cores during execution. This reduces cache invalidations, minimizes thread movement penalties, and maintains consistent locality. In conjunction with this, OMP_PLACES=cores was used to explicitly assign each OpenMP thread to a unique physical CPU core, ensuring optimal use of the L1 and L2 cache hierarchy and preventing threads from competing for the same compute resources. For more granular control, we set KMP_AFFINITY=compact,1,0,granularity=fine, instructing the OpenMP runtime to place threads as closely together as possible within each socket (compact mode), thereby lowering memory-access latency while binding threads to distinct hardware execution units (fine granularity). Finally, MPI process placement was controlled with --bind-to core and --map-by socket:PE=$OMP_NUM_THREADS, which fixes each MPI rank to a specific core while distributing ranks evenly across CPU sockets, with each rank allocated a defined number of processing elements matching its thread count. Together, these affinity settings ensured stable core locality, reduced NUMA effects, improved cache utilization, and produced both more consistent performance and more accurate energy-efficiency measurements across all test runs.
 
 
 ![WhatsApp Image 2025-11-15 at 07 42 21_6759b0d3](https://github.com/user-attachments/assets/d687f604-0314-4a4b-95bc-565062f027ca)
@@ -61,7 +89,6 @@ We manipulated CPU frequency, parallelization strategy, and execution layout to 
 
 
 This enabled us to identify the performance sweet spot and the energy-optimal point for each application.
-
 2. Compare Memory-Bound vs Compute-Bound Behavior
 
 By using one memory-bound and one compute-bound test case, we aimed to determine:
