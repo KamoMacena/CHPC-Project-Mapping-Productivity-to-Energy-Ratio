@@ -436,3 +436,4 @@ LAMMPS	Compute-bound	High	High	Power-save or Balanced depending on goal
  OpenFOAM benefits most from reducing communication & improving memory locality
 LAMMPS benefits most from reducing clock frequency without affecting runtime too much
 
+
