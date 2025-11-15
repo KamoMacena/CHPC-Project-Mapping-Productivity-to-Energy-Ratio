@@ -120,18 +120,19 @@ To quantify the energy consumption of HPC workloads at the CPU level, **RAPL (Ru
 ls /sys/class/powercap/intel-rapl/
 # Output: intel-rapl:0 (CPU package 0)
 ```
-Step B.2: Measure Energy Before and After Execution
+### Step B.2: Measure Energy Before and After Execution
+```bash
 # Before running the program
 cat /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
-# Output: 245678123456 µJ
+ Output: 245678123456 µJ
 
-# Execute program
+ Execute program
 ./build/matrix_multiply 1000
 
 # After running the program
 cat /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
 # Output: 245978456789 µJ
-
+```
 Step B.3: Calculate Energy Consumed
 
 Convert microjoules to joules:
