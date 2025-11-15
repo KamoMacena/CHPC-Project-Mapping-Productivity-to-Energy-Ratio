@@ -16,8 +16,9 @@ Through this investigation, we aim to answer fundamental questions:
 
 By integrating performance measurement with power profiling, this work contributes a **framework for energy-aware HPC benchmarking**, providing actionable guidance for both system operators and application developers seeking to reconcile high computational throughput with sustainable energy usage. The ultimate goal is not only to characterize system behavior but to inform policies that maximize scientific productivity while minimizing operational cost and environmental impact.
 
+## 2. Methodology
 
-## 2. System Information Overview
+## 2.1 System Information Overview
 
 To ensure reproducibility and accurate interpretation of productivity-to-energy measurements, a detailed characterization of the HPC system used in this study was conducted. The cluster node smshost was profiled across multiple layers, including hardware architecture, memory hierarchy, interconnects, and software environment.
 
@@ -116,7 +117,7 @@ Table 9: MPI Information
 
 This comprehensive system profiling establishes a baseline for understanding the hardware constraints and software dependencies influencing productivity and energy efficiency. It also enables consistent, reproducible benchmarking and facilitates direct correlation between system parameters, performance, and energy consumption.
 
-## 3. Key Tunable Parameters and Their Impact
+## 3. Key System-Level Parameters Parameters and Their Impact
 
 **CPU Behavior:** The CPU frequency and its scaling behavior determine the processing speed and energy consumption of the node. Jobs can request a **performance governor** to maintain a high and stable frequency, maximizing throughput, or a **powersave governor** to reduce frequency and conserve energy. If administrative permissions restrict changing the governor, the current frequency and turbo state are recorded to ensure results can be accurately interpreted.
 
@@ -156,13 +157,14 @@ OpenFOAM is an open-source CFD software package that simulates fluid flow, heat 
 | Key Metric (Efficiency)  | Iterations/s per Watt |
 
 Table 10: Summary of OpenFOAM benchmark parameters.
+
+---
 # Key Performance and Energy Metrics for OpenFOAM
 
 To evaluate productivity and energy efficiency for OpenFOAM on repurposed HPC hardware, this study uses a set of core computational and energy-related metrics. These metrics capture both simulation performance and energy cost, allowing detailed analysis of how CPU frequency, NUMA configuration, and core placement influence overall efficiency on legacy HPC systems.
 
----
 
-## 1. Wall-Clock Time
+##### 1. Wall-Clock Time
 
 Wall-clock time represents the total real elapsed time from the beginning of the simulation to completion. It is the most intuitive measure of productivity, as shorter wall-clock time means faster delivery of results.
 
@@ -174,9 +176,8 @@ However, wall-clock time alone is insufficient for deeper analysis because it do
 
 For this study, wall-clock time was paired with energy consumption (Joules) to calculate productivity-per-watt under different hardware configurations.
 
----
 
-## 2. Iteration Time and Iteration Rate
+##### 2. Iteration Time and Iteration Rate
 
 OpenFOAM performs iterative updates of the governing equations. Two important metrics are:
 
@@ -191,9 +192,7 @@ These metrics provide finer granularity than total runtime and help evaluate:
 
 Iteration rate was also used directly in calculating the **Productivity-to-Energy Cost Ratio**, since power readings were averaged across the iteration loop.
 
----
-
-## 3. Solver Performance and Linear Solver Iterations
+#### 3. Solver Performance and Linear Solver Iterations
 
 Each OpenFOAM iteration involves solving multiple linear systems for pressure and velocity. The number and efficiency of these linear solver iterations strongly influence overall runtime.
 
@@ -211,9 +210,8 @@ Higher solver iteration counts can indicate:
 
 Monitoring solver iteration behaviour ensured that changes in hardware parameters did not degrade numerical performance.
 
----
 
-## 4. Residual Reduction and Convergence Behaviour
+ #### 4. Residual Reduction and Convergence Behaviour
 
 Residuals quantify how well the numerical solution satisfies the discretized equations. For this study:
 
@@ -228,15 +226,14 @@ This metric was crucial for:
 
 Residual monitoring guaranteed scientific consistency across all energy-efficiency tests.
 
----
 
-## 5. Parallel Speedup and Parallel Efficiency
+ #### 5. Parallel Speedup and Parallel Efficiency
 
 Because OpenFOAM is parallelized using MPI, parallel performance metrics were required to understand scaling behaviour on the tested hardware.
 
 - **Speedup:**  
   \[
-  S(N) = \frac{T(1)}{T(N)}
+   S(N) = \frac{T(1)}{T(N)}
   \]
 
 - **Parallel Efficiency:**  
@@ -250,37 +247,9 @@ Strong-scaling behaviour was evaluated by running the same case on increasing co
 - Memory bandwidth saturation  
 - NUMA locality penalties  
 
+A value close to **1** indicates excellent scaling, while lower values indicate diminishing returns as more resources are added.
 These measurements helped identify the core count and frequency settings that maximized both performance and energy efficiency.
 
----
-
-## 6. Energy Consumption and Energy Efficiency
-
-Energy metrics were central to this study. Measurements were collected using:
-
-- Intel RAPL counters (package, cores, DRAM)
-- IPMI/IPMItool where available (node-level power)
-
-Three main metrics were computed:
-
-### **Power (Watts)**  
-Instantaneous or average CPU power draw during the simulation.
-
-### **Energy (Joules)**  
-Calculated as:  
-\[
-E = \text{Average Power} \times \text{Runtime}
-\]
-
-### **Performance per Watt**  
-Defined for OpenFOAM as:  
-\[
-\text{Energy Efficiency} = \frac{\text{Iterations per second}}{\text{Watts}}
-\]
-
-This metric directly supports the project objective: maximizing scientific throughput per unit of energy consumed.
-
----
 
 ## How These Metrics Support the Study Objective
 
@@ -294,19 +263,20 @@ Together, these metrics enable:
 By relating iteration rate, solver cost, power draw, and convergence behaviour, this metric set provides a comprehensive framework for characterizing energy-aware performance on repurposed HPC systems.
 
 
----
 
-### Results: Productivity vs. Energy Efficiency
+
+## Results: Productivity vs. Energy Efficiency
 
 We tested various fixed CPU clock frequencies to find the optimal balance between computational speed and power draw.
 
-| CPU Frequency (GHz) | Iterations/s | Avg Power (Watts) | Energy Efficiency (Iter/s per Watt) | Relative Efficiency |
-|--------------------|--------------|-----------------|------------------------------------|------------------|
-| Max Turbo (3.5)    | [Insert Data] | [Insert Data]   | [Insert Data]                      | 90%              |
-| Optimal (2.4)      | [Insert Data] | [Insert Data]   | [Insert Data]                      | 100%             |
-| Low (2.0)          | [Insert Data] | [Insert Data]   | [Insert Data]                      | 98%              |
+| CPU Frequency (GHz) | Iterations/s | Avg Power (Watts) | Energy Efficiency (Iter/s per Watt) | Relative Efficiency | Iterations Per Joule
+|--------------------|--------------|-----------------|------------------------------------|------------------|----------------------|
+| Max Turbo (3.5)    | 250          |   60.25 W       | 0.0166 I/W                         | 90%              | 0,0040               |
+| Optimal (2.4)      | 250          | 28.99 W         | 0,0344                             | 100%             |0.0049               |
+| Low (2.0)          | 250          |  26.39 W        | 0.0379                             | 98%              |0,0070               |
 
-**Table 11:** OpenFOAM single-node performance and energy efficiency comparison across different CPU clock speeds. Results shown are for the best performing run at each frequency.
+Table 11: OpenFOAM single-node performance and energy efficiency comparison across different CPU clock speeds. Results shown are for the best performing run at each frequency.
+
 
 ---
 
@@ -322,8 +292,10 @@ Scatter plots (Figure 1 and Figure 2) visually demonstrate the trade-off between
 ---
 
 ## 4.2 LAMMPS (Large-scale Atomic/Molecular Massively Parallel Simulator)
+LAMMPS (Large-scale Atomic/Molecular Massively Parallel Simulator) is a classical molecular dynamics (MD) code designed for efficient execution on parallel computing architectures. Its primary focus is materials modelling, and it includes a wide variety of interatomic potential models covering solid-state systems such as metals and semiconductors, soft-matter systems including polymers and biomolecules, as well as coarse-grained and mesoscopic models.
 
-LAMMPS is a widely used molecular dynamics simulation package. It is primarily written in C++ and is **compute-intensive**, meaning its performance is expected to correlate strongly with the **FLOPS capability** of the processor.
+Parallelism in LAMMPS is achieved through domain decomposition and message-passing techniques, allowing simulations to be distributed across many processors with minimal communication overhead. Many of its computational kernels also include optimised variants that leverage hardware acceleration on CPUs (e.g., vectorisation, threaded libraries) and GPUs. This makes LAMMPS highly scalable and well-suited to both legacy HPC hardware and modern heterogeneous computing environments. It is primarily written in C++ and is **compute-intensive**, meaning its performance is expected to correlate strongly with the **FLOPS capability** of the processor.
+
 
 ### Benchmark Details
 
@@ -338,7 +310,92 @@ LAMMPS is a widely used molecular dynamics simulation package. It is primarily w
 
 Table 8: Summary of LAMMPS benchmark parameters.
 
+---
+# Key Performance and Energy Metrics for Lammps
 
+
+#### 1. Wall-Clock Time
+
+ Wall-clock time measures the total elapsed real time from the start to the completion of a LAMMPS simulation.It is the most intuitive indicator of productivity because it directly represents how quickly simulation results can be obtained. Faster completion times translate to higher throughput for research and engineering workflows.
+ 
+Wall-clock time alone does not provide sufficient insight into the underlying reasons for performance differences. Specifically, it cannot distinguish:
+- Time spent performing computationally intensive force calculations versus communication overhead between MPI ranks  
+- Inefficiencies due to memory bottlenecks or NUMA non-locality  
+- Periods of high or low energy consumption  
+
+ By pairing wall-clock time with energy consumption measured in Joules, one can calculate **timesteps per Joule** (or work per unit energy), providing a more meaningful assessment of productivity in energy-constrained HPC environments.
+
+
+
+#### 2. Timestep Duration and Timestep Rate
+
+ In LAMMPS, molecular dynamics proceeds in discrete timesteps where atomic positions and velocities are updated iteratively.
+
+- **Timestep Duration (s/timestep):** The average time taken for a single update of the simulation system  
+- **Timestep Rate (timesteps/s):** The number of timesteps completed per second  
+
+ These metrics provide finer granularity than wall-clock time and allow analysis of the impact of:
+- **CPU frequency scaling:** Lower frequencies may reduce power draw but increase timestep duration  
+- **Threading and MPI decomposition:** The number of threads per process and the distribution of MPI ranks influence the speed of force calculations  
+- **Neighbor list rebuild frequency and force computation settings:** Excessive neighbor list rebuilds increase timestep duration  
+
+ Since energy measurements are averaged across timesteps, **timestep rate** becomes a direct input to productivity-per-watt calculations.
+
+
+#### 3. Force Calculation and Neighbor List Performance
+
+ LAMMPS performance is strongly dominated by interatomic force calculations and neighbor list updates, which are necessary to identify interacting particle pairs.
+
+**Tracked Metrics:**
+- **Force Computation Time per Timestep:** Time spent calculating pairwise and long-range forces  
+- **Neighbor List Build Frequency:** Determines how often neighbor lists are reconstructed, affecting computational load  
+- **Pair Style and K-Space Performance:** Different interaction models (e.g., Lennard-Jones, Coulombic) and long-range solvers can significantly influence computation time  
+
+ Poor tuning in these areas can lead to:
+- Increased total runtime  
+- Higher energy consumption per timestep  
+- Reduced simulation throughput  
+
+Monitoring these metrics ensures that energy-efficient configurations do not compromise computational accuracy or simulation fidelity.
+
+
+#### 4. Parallel Speedup and Efficiency
+
+**LAMMPS Parallelization:** LAMMPS supports MPI for distributed memory parallelism and OpenMP for shared memory threading.  
+
+**Key Metrics:**
+
+- **Speedup (S(N)):**  
+\[
+S(N) = \frac{T(1)}{T(N)}
+\]  
+where \(T(1)\) is the runtime on a single core and \(T(N)\) is the runtime on \(N\) cores.
+
+- **Parallel Efficiency (E(N)):**  
+\[
+E(N) = \frac{S(N)}{N}
+\]  
+
+**Strong Scaling:** Measures performance improvement when increasing cores for a fixed problem size. Efficiency typically decreases at high core counts due to:
+
+- MPI communication overhead  
+- Memory bandwidth saturation  
+- NUMA locality penalties  
+
+**Weak Scaling:** Measures performance when problem size and core count increase proportionally. Ideal weak scaling maintains constant runtime; deviations indicate communication or memory bottlenecks.
+ Optimal parallel configurations balance speedup and energy efficiency, maximizing timesteps per Joule rather than only raw speed.
+
+
+#### 5. Numerical Accuracy and Simulation Integrity
+
+ While LAMMPS does not solve linear systems like OpenFOAM, numerical stability is critical for meaningful simulations. Energy-efficient configurations must maintain physical accuracy.
+
+**Monitored Metrics:**
+
+- **Total Energy Drift:** Ensures conservation of energy over time in microcanonical (NVE) simulations  
+- **Force and Velocity Consistency:** Detects numerical errors introduced by aggressive energy-saving settings or low CPU frequencies  
+
+**Purpose:** Ensures that productivity gains achieved through tuning do not compromise the validity of the scientific results
 
 ---
 
@@ -346,15 +403,16 @@ Table 8: Summary of LAMMPS benchmark parameters.
 
 Benchmark performance (Timesteps/s) and average power consumption (Watts) were measured at various fixed CPU clock frequencies, controlled via the Slurm job script.
 
-| CPU Frequency (GHz) | Timesteps/s | Avg Power (Watts) | Energy Efficiency (ts/s per Watt) | Relative Efficiency |
-|--------------------|------------|-----------------|---------------------------------|------------------|
-| Max Turbo (3.5)    | [Insert Data] | [Insert Data] | [Insert Data] | 95% |
-| Optimal (2.7)      | [Insert Data] | [Insert Data] | [Insert Data] | 100% |
-| Low (2.0)          | [Insert Data] | [Insert Data] | [Insert Data] | 88% |
+| CPU Frequency (GHz) | Timesteps/s | Avg Power (Watts) | Energy Efficiency (ts/s per Watt) | Atom Steps/s |
+|--------------------|------------|-----------------|---------------------------------|--------------|
+| Max Turbo (3.5)    | 7,152      | 88.75           | 0.1127                          | 1.83         |
+| Optimal (2.7)      | 5,278      | 46.03           | 0.0217                          | 1.33         |
+| Low (2.0)          | 6,292      | 39.06           | 0.0256                          | 1.61         |
 
-**Table 9:** LAMMPS single-node performance and energy efficiency comparison across different CPU clock speeds. Results shown are for the best performing run at each frequency.
+**Table 9:** LAMMPS single-node performance and energy efficiency comparison across different CPU clock speeds. The results correspond to the best performing run at each frequency.
 
-> The highest raw performance is achieved at maximum turbo frequency (3.5 GHz), but the **optimal energy efficiency** occurs at [Insert Optimal GHz], highlighting the trade-off between power consumption and performance.
+> The results show that the **highest raw computational performance** is achieved at the maximum turbo frequency of 3.5 GHz. However, **optimal energy efficiency**—defined as the highest ratio of timesteps per second per Watt—is achieved at 2.0 GHz, highlighting the inherent trade-off between performance and power consumption. While higher frequencies deliver faster simulation results, they consume disproportionately more energy, making moderate frequencies more favorable for energy-aware HPC operation.
+
 
 
 
