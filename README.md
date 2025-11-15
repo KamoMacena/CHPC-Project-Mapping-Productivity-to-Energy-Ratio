@@ -140,14 +140,18 @@ By tuning these parameters, the study created a reproducible framework to measur
 
 ## 4. Application Benchmarks: Productivity and Energy Efficiency
 
-In this study, we conducted two primary benchmark tests using representative HPC applications to determine the optimal **Productivity-to-Energy Cost Ratio** on the repurposed legacy hardware. Unlike traditional performance reports, our analysis focuses on the trade-off between raw speed and power consumption by manipulating system parameters via the Slurm scheduler.
+To evaluate the interplay between computational performance and energy consumption, this study conducted two primary benchmark tests using representative HPC applications. The goal was to determine the **optimal Productivity-to-Energy Cost Ratio** on repurposed legacy hardware. Unlike conventional performance assessments that focus solely on raw execution speed, this analysis emphasizes the **trade-offs between computational throughput and power consumption**. System parameters, including CPU frequency, core placement, and parallelization settings, were systematically manipulated through the **Slurm scheduler** to capture these trade-offs under controlled conditions.
 
-The two applications benchmarked were:
+The benchmark applications were carefully selected to represent contrasting workload characteristics commonly encountered in HPC:
 
-- **LAMMPS:** Molecular Dynamics (compute-intensive).  
-- **OpenFOAM:** Computational Fluid Dynamics (typically memory-bound).  
+- **LAMMPS (Large-scale Atomic/Molecular Massively Parallel Simulator):** A molecular dynamics code that is primarily **compute-intensive**, relying heavily on floating-point operations and optimized for parallel execution across multiple cores. Its workload stresses the processor, making it ideal for evaluating configurations that target maximum computational throughput.  
 
-More details on these benchmarks and the methodology used to gather both performance and power data are detailed in the individual sections below.  
+- **OpenFOAM (Open Field Operation and Manipulation):** An open-source computational fluid dynamics (CFD) software that is typically **memory-bound**, with performance largely determined by memory bandwidth, latency, and inter-process communication. OpenFOAM benchmarks highlight how memory and network characteristics influence energy efficiency, particularly under varying CPU frequencies and NUMA memory policies.  
+
+Each application was run using carefully defined test cases, allowing measurement of both **performance metrics** (e.g., timesteps per second for LAMMPS, iterations per second for OpenFOAM) and **energy consumption metrics** (via Intel RAPL and system monitoring tools). This dual approach enables a comprehensive assessment of **productivity per unit of energy**, providing actionable insights into how hardware configuration and workload characteristics interact to influence the efficiency of HPC applications.
+
+Subsequent sections provide a detailed description of the benchmark setup, methodology for performance and energy measurement, and the analytical framework used to derive productivity-to-energy ratios for both compute- and memory-intensive workloads.
+  
 
 ## 4.1 OpenFOAM (Open Field Operation and Manipulation)
 
