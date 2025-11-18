@@ -248,7 +248,10 @@ Because OpenFOAM is parallelized using MPI, parallel performance metrics were re
 
 The speedup of a parallel application is defined as:
 
-**\[ S(N) = \frac{T(1)}{T(N)} \]**
+$$
+\mathbf{S(N) = \frac{T(1)}{T(N)}}
+$$
+
 
  Where:
 S(N) = Speedup achieved using N processors
@@ -263,12 +266,15 @@ S(N) = N: Ideal linear speedup (perfect parallel scaling)
 S(N) > N: Super-linear speedup (rare, usually due to cache effects)
 
 
-**2.2  Parallel Efficiency:**  Parallel efficiency quantifies how effectively the computational resources are utilized. It normalizes speedup by the number of processors:
-- 
-  **\[
-  E(N) = \frac{S(N)}{N} = \frac{T(1)}{N \cdot T(N)}
-  \]**
+ **5.2  Parallel Efficiency:**  Parallel efficiency quantifies how effectively the computational resources are utilized. It normalizes speedup by the number of processors:
 
+
+
+$$
+\mathbf{E(N) = \frac{S(N)}{N} = \frac{T(1)}{N \cdot T(N)}}
+$$
+
+  
   Where:
 
 E(N) = Efficiency of using N processors
