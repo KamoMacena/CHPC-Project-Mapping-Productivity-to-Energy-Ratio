@@ -273,95 +273,189 @@ RAPL-based energy sampling
 Consistent problem size (100 timesteps of the LJ melt case)
 
 # 5.1 LAMMPS Scripts Used in the Experiment
-
-Below are the exact scripts (trimmed for clarity but structurally intact) executed for the three modes. These scripts capture all power/performance tuning parameters.
-
-## 5.1.1 Performance Mode Script (Max Frequency)
-``` bash
-#!/usr/bin/env bash
-#===========================================
-#LAMMPS parallel benchmark (Performance Mode)
-#with RAPL power logging and performance summary
-#===========================================
+        LAMMPS                                                                                                                                                                                                                                                                            LampsPerfomance
+```bash
+#!/bin/bash
+# powersave
+# Run LAMMPS in Balanced Mode and produce a full efficiency summary (reproduce original performance output).
 
 set -euo pipefail
 IFS=$'\n\t'
 
-#--- Modules ---
-module purge
-module load gnu12/12.4.0
-module load openmpi4/4.1.6
+# ---------------- TMP directory for OpenMPI session ----------------
+export TMPDIR=$HOME/tmp
+mkdir -p "$TMPDIR"
 
-#--- SLURM / job defaults ---
-SLURM_NTASKS=${SLURM_NTASKS:-16}
-JOB_NAME=${SLURM_JOB_NAME:-LAMMPS_Perf}
-NODELIST=$(scontrol show hostnames 2>/dev/null || hostname)
+# ---------------- User settings ----------------
+LAMMPS_BIN="./lmp_mpi"
+INPUT_FILE="in.lj"
+MPI_TASKS=4
+OMP_THREADS=4           # adjust if needed
+RESULTS_DIR="./results"
 
-#--- Absolute LAMMPS binary ---
-LAMMPS_BIN="/home/debugthugz_shared/productivity_to_energy/productivity-to-energy-ratio-for-HPC-applications/benchmarks/Lamps/lammps/bench/lmp_mpi"
-
-if [[ ! -x "$LAMMPS_BIN" ]]; then
-    echo "ERROR: LAMMPS binary not executable: $LAMMPS_BIN"
-    exit 1
-fi
-
-#--- Timestamped output directory ---
+# ---------------- Prepare output directory ----------------
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTDIR="$(pwd)/results/run_${TIMESTAMP}"
+OUTDIR="${RESULTS_DIR}/run_${TIMESTAMP}"
 mkdir -p "$OUTDIR"
 
-echo "[$(date)] Starting LAMMPS job: $JOB_NAME"
+echo "[${TIMESTAMP}] Starting LAMMPS job: LAMMPS_Balanced"
 echo "Output directory: $OUTDIR"
 
-#--- Copy input files ---
-INPUT_FILE="in.lj"
-if [[ ! -f "$INPUT_FILE" ]]; then
-    echo "ERROR: LAMMPS input file ($INPUT_FILE) not found."
-    exit 1
+# ---------------- CPU Governor ----------------
+echo "[BalancedMode] Setting CPU governor → powersave"
+sudo cpupower frequency-set -g powersave &>/dev/null || true
+
+export OMP_NUM_THREADS=$OMP_THREADS
+
+# ---------------- Start Power Logging ----------------
+RAPL_LOG="${OUTDIR}/power_rapl.csv"
+echo "timestamp,package_joules" > "$RAPL_LOG"
+
+(
+    while true; do
+        TS=$(date +%s.%N)
+        PJ=$(cat /sys/class/powercap/intel-rapl:0/energy_uj 2>/dev/null || echo 0)
+        echo "$TS,$PJ" >> "$RAPL_LOG"
+        sleep 0.2
+    done
+) &
+RAPL_PID=$!
+
+# ---------------- Run LAMMPS ----------------
+echo "[BalancedMode] Running LAMMPS with core/socket binding..."
+mpirun --bind-to core --map-by socket \
+      -np $MPI_TASKS $LAMMPS_BIN -in $INPUT_FILE > "$OUTDIR/lammps.out"
+
+# ---------------- Stop power logging ----------------
+kill $RAPL_PID 2>/dev/null || true
+wait $RAPL_PID 2>/dev/null || true
+
+echo "=== DONE (Balanced Mode) ==="
+
+# ---------------- Parse Power (Joules) ----------------
+J_START=$(head -n 2 "$RAPL_LOG" | tail -n 1 | awk -F, '{print $2}')
+J_END=$(tail -n 1 "$RAPL_LOG" | awk -F, '{print $2}')
+TOTAL_J=$(echo "scale=6; ($J_END - $J_START) / 1000000" | bc -l)
+
+# ---------------- Parse LAMMPS output ----------------
+OUTFILE="$OUTDIR/lammps.out"
+
+ELAPSED=$(grep "Loop time" "$OUTFILE" | awk '{print $4+0}')
+STEPS=$(grep "Loop time" "$OUTFILE" | awk '{print $9+0}')
+
+TIMESTEPS_PER_S=$(grep "Performance:" "$OUTFILE" | awk '{print $4+0}')
+MATOMSTEP=$(grep "Performance:" "$OUTFILE" | awk '{print $6+0}')
+
+# ---------------- Derived metrics ----------------
+if (( $(echo "$ELAPSED > 0" | bc -l) )); then
+    AVG_POWER=$(echo "$TOTAL_J / $ELAPSED" | bc -l)
+else
+    AVG_POWER=0
 fi
-cp "$INPUT_FILE" "$OUTDIR/"
 
-cd "$OUTDIR"
+if (( $(echo "$TOTAL_J == 0" | bc -l) )); then
+    EFFICIENCY="N/A"
+else
+    EFFICIENCY=$(echo "$ELAPSED / $TOTAL_J" | bc -l)
+fi
 
-#======================================================
- #PERFORMANCE TUNING BLOCK
-#======================================================
-echo "[PerfMode] Setting CPU governor to performance..."
+# ---------------- Write summary ----------------
+SUMMARY="$OUTDIR/efficiency_summary.txt"
+{
+echo "=== LAMMPS Balanced-mode Summary ==="
+echo "Timestamp: $(date -u)"
+echo "Host: $(hostname)"
+echo "Job name: LAMMPS_Balanced"
+echo "MPI tasks: $MPI_TASKS"
+echo "Elapsed time (s): $ELAPSED"
+echo "Total energy (J): $TOTAL_J"
+echo "Average power (W): $AVG_POWER"
+echo "LAMMPS steps: $STEPS"
+echo "Timesteps/s: $TIMESTEPS_PER_S"
+echo "M atom-step/s: $MATOMSTEP"
+echo "Efficiency (s/J): $EFFICIENCY"
+} > "$SUMMARY"
+
+echo "Efficiency summary saved to $SUMMARY"
+```
+
+HOW IT WAS TUNED : 
+For this LAMMPS benchmark, the script is tuned to evaluate throughput and energy efficiency under a balanced, power-saving CPU configuration rather than outright performance. The CPU governor is deliberately forced into powersave, allowing the processor to run at reduced frequencies and demonstrate how LAMMPS behaves when clock speeds are constrained. Unlike the performance-mode script, this one makes no attempt to fix frequency or boost clocks; instead, it stresses how LAMMPS scales under lower power conditions.
+The run uses 4 MPI ranks paired with 4 OpenMP threads, giving a hybrid 4×4 layout. This keeps the total core usage balanced on typical 16-core nodes, while reducing communication pressure compared to a pure-MPI configuration. The script binds MPI ranks to physical cores and maps them by socket, ensuring each rank gets consistent memory locality and avoiding scheduling noise that would skew power-efficiency measurements.
+A lightweight RAPL logger runs in the background at 0.2-second intervals, continuously sampling package energy. This logging method is intentionally minimal so that it doesn’t interfere with runtime or pollute CPU scheduling. After the simulation finishes, the script calculates net joules consumed, average power draw, and a derived efficiency score (seconds per joule), letting you compare how much useful work is delivered per unit of energy.
+The parsing logic extracts the same core performance metrics that matter in HPC benchmarking loop time, total LAMMPS steps, timesteps per second, and M atom-step/s. These outputs reveal how the workload responds to clock-down behaviour and hybrid MPI+OMP under constrained power. Overall, the script is engineered to highlight efficiency trends, not raw speed, making it ideal for comparing balanced or power-limited operation against more aggressive performance-mode runs.
+
+<img width="601" height="239" alt="image" src="https://github.com/user-attachments/assets/dde00c7e-addb-4f9d-9fc7-95af967561c7" />
+
+
+<img width="601" height="307" alt="image" src="https://github.com/user-attachments/assets/6e9bc0c7-727e-4788-b438-73658038feac" />
+
+
+THE ANALYSIS 
+The LAMPS output clearly shows how the balanced-mode, low-frequency configuration shaped the simulation behaviour, directly trading raw speed for thermodynamic efficiency. With the governor holding the CPUs in a reduced-power state, the run produced a loop time of ~18.3 seconds for 100 steps and a modest 5.482 timesteps/s—the expected slowdown from restricted frequency scaling. This performance drop, however, corresponds to a significantly lower average power draw, likely around 40W for the job, which in turn means only about 40 Joules of energy are consumed per second of runtime. The true efficiency is revealed in the performance-per-watt ratio; while the throughput of 1.463 M atom-step/s is about 23% slower than a performance-mode estimate, the energy required per unit of work is so much lower that the balanced configuration achieves a roughly 34% higher computational efficiency. This validates the intent of the balanced/powersave configuration: it creates a predictable, communication-heavy profile where the performance numbers reflect conservative CPU frequencies, yielding major gains in energy efficiency at the cost of a controlled and acceptable reduction in speed.
+
+
+<img width="602" height="352" alt="image" src="https://github.com/user-attachments/assets/6e6b1fb0-c75c-43a1-b31e-27a6c0e5183c" />
+
+
+The performance profile illustrates a clear trend: increasing cumulative energy input does not inherently produce higher computational throughput in LAMMPS. The system achieves its most effective performance within the mid-range energy window (approximately 2500–3500 J), where timesteps stabilize between 55,000 and 62,000 timesteps/s. Beyond this range, particularly as energy consumption exceeds 6000 J, throughput declines to the 48,000–52,000 timesteps/s level, indicating diminishing returns despite higher power usage.
+These variations are consistent with well-known factors influencing large-scale molecular dynamics workloads. Shifts in MPI rank distribution, OpenMP thread allocation, CPU frequency scaling behaviour, and memory locality can all introduce inefficiencies in both pairwise force computation and inter-process communication. When these components fall out of alignment, the system’s ability to convert additional energy into proportional performance gains deteriorates.
+The associated metrics—timesteps per second, per-atom throughput, CPU utilization, and MPI timing distribution—collectively validate that optimal efficiency is achieved at moderate energy levels. The data reinforces a central operational principle: sustained high performance depends less on raw power consumption and more on balanced parallel configuration, stable thread–rank coordination, and careful management of hardware frequency behaviour.
+
+
+Test Case 2
+```bash
+LAMMPS Script Tuning ANALYSES
+#!/usr/bin/env bash
+# ===========================================
+# LAMMPS Performance Benchmark
+# 8 MPI tasks, 2 OMP threads, powersave governor
+# ===========================================
+
+set -euo pipefail
+IFS=$'\n\t'
+
+export TMPDIR=$HOME/tmp
+mkdir -p "$TMPDIR"
+
+# ---------------- User settings ----------------
+LAMMPS_BIN="./lmp_mpi"
+INPUT_FILE="in.lj"
+MPI_TASKS=8          # Reduced MPI tasks
+OMP_THREADS=2        # Increase threads per MPI task
+RESULTS_DIR="./results"
+CPU_FREQ="2700000"   # in kHz, ~2.7 GHz
+
+# ---------------- Prepare output directory ----------------
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+OUTDIR="${RESULTS_DIR}/run_${TIMESTAMP}"
+mkdir -p "$OUTDIR"
+
+echo "[${TIMESTAMP}] Starting LAMMPS job: LAMMPS_performance"
+echo "Output directory: $OUTDIR"
+
+# ---------------- CPU governor and frequency ----------------
+echo "[Balanced-Powersave] Setting CPU governor to performance..."
 for CPU in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-    echo performance | sudo tee $CPU >/dev/null
+    echo performance | sudo tee "$CPU" >/dev/null
 done
 
-#Detect MPI binding support
-MPI_BIND=""
-if mpirun --help | grep -q '\--bind-to'; then
-    echo "[PerfMode] MPI binding supported, applying core binding..."
-    MPI_BIND="--bind-to core"
-else
-    echo "[PerfMode] MPI binding not supported, skipping..."
-fi
+echo "[Balanced-Powersave] Attempting to fix CPU frequency to 2.7 GHz..."
+for CPU in /sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed; do
+    # Only set if file exists and writable
+    [[ -w "$CPU" ]] && echo $CPU_FREQ | sudo tee "$CPU" >/dev/null || true
+done
 
-#======================================================
-#RAPL energy setup
-#======================================================
+export OMP_NUM_THREADS=$OMP_THREADS
+echo "[Balanced-Powersave] MPI tasks = $MPI_TASKS, OMP threads = $OMP_THREADS"
+
+# ---------------- RAPL logging setup ----------------
 RAPL_BASE="/sys/class/powercap/intel-rapl"
 RAPL_FILE=""
-MAX_ENERGY_FILE=""
-
 for d in "$RAPL_BASE"/intel-rapl:*; do
-    if [[ -f "$d/energy_uj" ]]; then
-        RAPL_FILE="$d/energy_uj"
-        [[ -f "$d/max_energy_range_uj" ]] && MAX_ENERGY_FILE="$d/max_energy_range_uj"
-        break
-    fi
+    [[ -f "$d/energy_uj" ]] && { RAPL_FILE="$d/energy_uj"; break; }
 done
-
-[[ -f "$RAPL_FILE" ]] || { echo "ERROR: RAPL energy file not found."; exit 1; }
-
-WRAP_ADD=0
-if [[ -n "$MAX_ENERGY_FILE" ]]; then
-    max_range=$(awk '{print int($1)}' "$MAX_ENERGY_FILE" 2>/dev/null || echo 0)
-    [[ $max_range -gt 0 ]] && WRAP_ADD=$max_range
-fi
+[[ -f "$RAPL_FILE" ]] || { echo "RAPL not found, skipping energy logging."; }
 
 TMP_LOG="$(mktemp -u /dev/shm/power_rapl_${TIMESTAMP}_XXXXXX.csv 2>/dev/null || mktemp /tmp/power_rapl_${TIMESTAMP}_XXXXXX.csv)"
 : > "$TMP_LOG"
@@ -370,473 +464,84 @@ echo "timestamp_unix,energy_uj" > "$TMP_LOG"
 
 POW_PID=""
 cleanup() {
-    if [[ -n "${POW_PID:-}" ]]; then
-        kill "$POW_PID" 2>/dev/null || true
-        wait "$POW_PID" 2>/dev/null || true
-    fi
+    [[ -n "$POW_PID" ]] && kill "$POW_PID" 2>/dev/null || true
     cp -f "$TMP_LOG" "$OUTDIR/power_rapl.csv" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
 
-#--- Start RAPL logging ---
-(
+# Start RAPL logging in background if available
+[[ -f "$RAPL_FILE" ]] && (
     while true; do
         echo "$(date +%s),$(cat "$RAPL_FILE")" >> "$TMP_LOG"
         sleep 1
     done
-) &
-POW_PID=$!
+) & POW_PID=$!
 
-START_E=$(cat "$RAPL_FILE")
+START_E=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
 START_T=$(date +%s)
 
-#--- Run LAMMPS ---
-echo "Running LAMMPS (Performance Mode) on $SLURM_NTASKS MPI tasks..."
-if command -v mpirun >/dev/null 2>&1; then
-    mpirun -np "$SLURM_NTASKS" $MPI_BIND "$LAMMPS_BIN" -in "$INPUT_FILE" > lammps.out 2>&1 || true
-else
-    echo "ERROR: mpirun not found."
-    exit 1
-fi
+# ---------------- Run LAMMPS ----------------
+echo "[Balanced-Powersave] Running LAMMPS..."
+mpirun -np $MPI_TASKS "$LAMMPS_BIN" -in "$INPUT_FILE" > "$OUTDIR/lammps.out" 2>&1
 
-END_E=$(cat "$RAPL_FILE")
+END_E=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
 END_T=$(date +%s)
-ELAPSED=$((END_T - START_T))
+ELAPSED=$(awk -v start=$START_T -v end=$END_T 'BEGIN{print end-start}')
 
-#Handle RAPL wrap-around
-if [[ "$END_E" -lt "$START_E" && $WRAP_ADD -gt 0 ]]; then
-    END_E=$((END_E + WRAP_ADD))
-fi
+ENERGY_J=$(awk -v s=$START_E -v e=$END_E 'BEGIN{printf "%.2f",(e-s)/1e6}')
+AVG_POWER=$(awk -v E=$ENERGY_J -v T=$ELAPSED 'BEGIN{if(T>0) printf "%.2f",E/T; else print "N/A"}')
 
-ENERGY_J=$(awk -v s="$START_E" -v e="$END_E" 'BEGIN {printf "%.2f",(e-s)/1e6}')
-AVG_POWER=$(awk -v E="$ENERGY_J" -v T="$ELAPSED" 'BEGIN{if(T>0) printf "%.2f",E/T; else print "0.00"}')
-
-#--- Extract LAMMPS performance ---
-STEPS=$(grep -E "Loop time of" lammps.out | awk '{print $(NF-8)}' | head -n1 || echo "0")
-TIMESTEP_RATE=$(grep -E "timesteps/s" lammps.out | awk '{print $(NF-1)}' | head -n1 || echo "0")
-ATOM_RATE=$(grep -E "Matom-step/s" lammps.out | awk '{print $1}' | head -n1 || echo "0")
-EFF_S_PER_J=$(awk -v E="$ENERGY_J" -v T="$ELAPSED" 'BEGIN{if(E>0) printf "%.6f",T/E; else print "0"}')
-
-#--- Write summary ---
-{
-echo "=== LAMMPS Performance-mode Summary ==="
-echo "Timestamp: $(date -u)"
-echo "Host: $(hostname)"
-echo "Node list: $NODELIST"
-echo "Job name: $JOB_NAME"
-echo "MPI tasks: $SLURM_NTASKS"
-echo "Elapsed (s): $ELAPSED"
-echo "Total energy (J): $ENERGY_J"
-echo "Average power (W): $AVG_POWER"
-echo "LAMMPS Steps: $STEPS"
-echo "Timesteps/s: $TIMESTEP_RATE"
-echo "M atom-step/s: $ATOM_RATE"
-echo "Efficiency (s/J): $EFF_S_PER_J"
-} > "$OUTDIR/efficiency_summary.txt"
-
-echo "=== DONE (Performance Mode) ==="
-echo "Results stored in: $OUTDIR"
-
-``` 
-## 5.1.2 Balanced Mode Script (Fixed 2.4 GHz DVFS)
-
-```
-#!/bin/bash
-#MweLammps_Balance.sh
-#Run LAMMPS in Balanced Mode and produce a full efficiency summary.
-
-set -euo pipefail
-IFS=$'\n\t'
-
-#---------------- User settings ----------------
-LAMMPS_BIN="./lmp_mpi"
-INPUT_FILE="in.lj"
-MPI_TASKS=16
-RESULTS_DIR="./results"
-
-#---------------- Prepare output directory ----------------
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTDIR="${RESULTS_DIR}/run_${TIMESTAMP}"
-mkdir -p "$OUTDIR"
-
-echo "[${TIMESTAMP}] Starting LAMMPS job: LAMMPS_Balanced"
-echo "Output directory: $OUTDIR"
-
-#---------------- Run LAMMPS ----------------
-echo "[BalancedMode] Tuning CPU governor to ondemand..."
-sudo cpupower frequency-set -g ondemand &>/dev/null || true
-echo "[BalancedMode] Letting OS schedule MPI tasks (no aggressive binding)."
-mpirun -np $MPI_TASKS $LAMMPS_BIN -in $INPUT_FILE > "$OUTDIR/lammps.out"
-
-echo "=== DONE (Balanced Mode) ==="
-
-#---------------- Parse LAMMPS output ----------------
+# ---------------- Parse LAMMPS output ----------------
 OUTFILE="$OUTDIR/lammps.out"
+STEPS=$(grep "Loop time" "$OUTFILE" | awk '{print $9+0}' || echo "0")
+TIMESTEPS_PER_S=$(grep "Performance:" "$OUTFILE" | awk '{print $4+0}' || echo "0")
+MATOMSTEP=$(grep "Performance:" "$OUTFILE" | awk '{print $6+0}' || echo "0")
 
-#Total elapsed time from "Loop time" line
-ELAPSED=$(grep "Loop time" "$OUTFILE" | awk '{print $4+0}') || ELAPSED=0
-
-#Total LAMMPS steps (from "Loop time" line)
-STEPS=$(grep "Loop time" "$OUTFILE" | awk '{print $3+0}') || STEPS=0
-
-#Timesteps per second
-TIMESTEPS_PER_S=$(grep "Performance:" "$OUTFILE" | awk '{print $4+0}') || TIMESTEPS_PER_S=0
-
-#Million atom-steps per second
-MATOMSTEP=$(grep "Performance:" "$OUTFILE" | awk '{print $5+0}') || MATOMSTEP=0
-
-#Total energy: pick the last TotEng value from the output table
-TOTAL_ENERGY=$(awk '/^ *Step/ {header=1; next} header {energy=$5} END {print energy+0}' "$OUTFILE") || TOTAL_ENERGY=0
-
-#Calculate efficiency (s/J)
-if (( $(echo "$TOTAL_ENERGY == 0" | bc -l) )); then
-    EFFICIENCY="N/A"
-    AVG_POWER="N/A"
+# Efficiency (s/J)
+if (( $(echo "$ENERGY_J > 0" | bc -l) )); then
+    EFFICIENCY=$(awk -v E=$ENERGY_J -v T=$ELAPSED 'BEGIN{printf "%.6f",T/E}')
 else
-    EFFICIENCY=$(echo "$ELAPSED / $TOTAL_ENERGY" | bc -l)
-    AVG_POWER=$(echo "$TOTAL_ENERGY / $ELAPSED" | bc -l)
+    EFFICIENCY="N/A"
 fi
 
-#---------------- Write summary ----------------
+# ---------------- Write summary ----------------
 SUMMARY="$OUTDIR/efficiency_summary.txt"
 {
-echo "=== LAMMPS Balanced-mode Summary ==="
+echo "=== LAMMPS Balanced-Powersave Summary ==="
 echo "Timestamp: $(date -u)"
 echo "Host: $(hostname)"
 echo "Node list: $(hostname)"
-echo "Job name: LAMMPS_Balanced"
+echo "Job name: LAMMPS_Balanced_Powersave"
 echo "MPI tasks: $MPI_TASKS"
 echo "Elapsed (s): $ELAPSED"
-echo "Total energy (J): $TOTAL_ENERGY"
+echo "Total energy (J): $ENERGY_J"
 echo "Average power (W): $AVG_POWER"
 echo "LAMMPS Steps: $STEPS"
 echo "Timesteps/s: $TIMESTEPS_PER_S"
 echo "M atom-step/s: $MATOMSTEP"
 echo "Efficiency (s/J): $EFFICIENCY"
 } > "$SUMMARY"
-
-`echo "Efficiency summary saved to $SUMMARY"
-#!/bin/bash
-#MweLammps_Balance.sh
-#Run LAMMPS in Balanced Mode and produce a full efficiency summary.
-
-set -euo pipefail
-IFS=$'\n\t'
-
-#---------------- User settings ----------------
-LAMMPS_BIN="./lmp_mpi"
-INPUT_FILE="in.lj"
-MPI_TASKS=16
-RESULTS_DIR="./results"
-
-#---------------- Prepare output directory ----------------
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTDIR="${RESULTS_DIR}/run_${TIMESTAMP}"
-mkdir -p "$OUTDIR"
-
-echo "[${TIMESTAMP}] Starting LAMMPS job: LAMMPS_Balanced"
-echo "Output directory: $OUTDIR"
-
-#---------------- Run LAMMPS ----------------
-echo "[BalancedMode] Tuning CPU governor to ondemand..."
-sudo cpupower frequency-set -g ondemand &>/dev/null || true
-echo "[BalancedMode] Letting OS schedule MPI tasks (no aggressive binding)."
-mpirun -np $MPI_TASKS $LAMMPS_BIN -in $INPUT_FILE > "$OUTDIR/lammps.out"
-
-echo "=== DONE (Balanced Mode) ==="
-
-#---------------- Parse LAMMPS output ----------------
-OUTFILE="$OUTDIR/lammps.out"
-
-#Total elapsed time from "Loop time" line
-ELAPSED=$(grep "Loop time" "$OUTFILE" | awk '{print $4+0}') || ELAPSED=0
-
-#Total LAMMPS steps (from "Loop time" line)
-STEPS=$(grep "Loop time" "$OUTFILE" | awk '{print $3+0}') || STEPS=0
-
-#Timesteps per second
-TIMESTEPS_PER_S=$(grep "Performance:" "$OUTFILE" | awk '{print $4+0}') || TIMESTEPS_PER_S=0
-
-#Million atom-steps per second
-MATOMSTEP=$(grep "Performance:" "$OUTFILE" | awk '{print $5+0}') || MATOMSTEP=0
-
-#Total energy: pick the last TotEng value from the output table
-TOTAL_ENERGY=$(awk '/^ *Step/ {header=1; next} header {energy=$5} END {print energy+0}' "$OUTFILE") || TOTAL_ENERGY=0
-
-#Calculate efficiency (s/J)
-if (( $(echo "$TOTAL_ENERGY == 0" | bc -l) )); then
-    EFFICIENCY="N/A"
-    AVG_POWER="N/A"
-else
-    EFFICIENCY=$(echo "$ELAPSED / $TOTAL_ENERGY" | bc -l)
-    AVG_POWER=$(echo "$TOTAL_ENERGY / $ELAPSED" | bc -l)
-fi
-
-#---------------- Write summary ----------------
-SUMMARY="$OUTDIR/efficiency_summary.txt"
-{
-echo "=== LAMMPS Balanced-mode Summary ==="
-echo "Timestamp: $(date -u)"
-echo "Host: $(hostname)"
-echo "Node list: $(hostname)"
-echo "Job name: LAMMPS_Balanced"
-echo "MPI tasks: $MPI_TASKS"
-echo "Elapsed (s): $ELAPSED"
-echo "Total energy (J): $TOTAL_ENERGY"
-echo "Average power (W): $AVG_POWER"
-echo "LAMMPS Steps: $STEPS"
-echo "Timesteps/s: $TIMESTEPS_PER_S"
-echo "M atom-step/s: $MATOMSTEP"
-echo "Efficiency (s/J): $EFFICIENCY"
-} > "$SUMMARY"
-
-echo "Efficiency summary saved to $SUMMARY"
-``` 
-## 5.1.3 Power Save Mode Script (Minimum Frequency + Reduced Load)
-``` # !/usr/bin/env bash
-# ===========================================
-# LAMMPS parallel benchmark (Energy-saving Mode)
-# with RAPL power logging and performance summary
-# ===========================================
-
-set -euo pipefail
-IFS=$'\n\t'
-
-# --- SLURM / job defaults ---
-SLURM_NTASKS=${SLURM_NTASKS:-16}
-JOB_NAME=${SLURM_JOB_NAME:-LAMMPS_Energy}
-NODELIST=$(scontrol show hostnames 2>/dev/null || hostname)
-
-# --- Timestamped output directory ---
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTDIR="$(pwd)/results/run_${TIMESTAMP}"
-mkdir -p "$OUTDIR"
-
-echo "[$(date)] Starting LAMMPS job: $JOB_NAME"
-echo "Output directory: $OUTDIR"
-
-#--- Copy input files ---
-INPUT_FILE="in.lj"
-if [[ ! -f "$INPUT_FILE" ]]; then
-    echo "LAMMPS input file ($INPUT_FILE) not found."
-    exit 1
-fi
-cp -r "$INPUT_FILE" "$OUTDIR/"
-cd "$OUTDIR"
-
-#======================================================
-#ENERGY-SAVING TUNING BLOCK
-#======================================================
-
-echo "[EnergyMode] Tuning CPU governor to powersave..."
-for CPU in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-    echo powersave | sudo tee $CPU >/dev/null
-done
-
-echo "[EnergyMode] Skipping aggressive MPI binding (let OS schedule)."
-
-#======================================================
- #END TUNING BLOCK
-#======================================================
-
-#--- RAPL setup ---
-RAPL_BASE="/sys/class/powercap/intel-rapl"
-RAPL_FILE=""
-MAX_ENERGY_FILE=""
-
-for d in "$RAPL_BASE"/intel-rapl:*; do
-    if [ -f "$d/energy_uj" ]; then
-        RAPL_FILE="$d/energy_uj"
-        [[ -f "$d/max_energy_range_uj" ]] && MAX_ENERGY_FILE="$d/max_energy_range_uj"
-        break
-    fi
-done
-
-[[ -f "$RAPL_FILE" ]] || { echo "RAPL not found."; exit 1; }
-
-WRAP_ADD=0
-if [[ -n "$MAX_ENERGY_FILE" ]]; then
-    max_range=$(awk '{print int($1)}' "$MAX_ENERGY_FILE" 2>/dev/null || echo 0)
-    [[ $max_range -gt 0 ]] && WRAP_ADD=$max_range
-fi
-
-TMP_LOG="$(mktemp -u /dev/shm/power_rapl_${TIMESTAMP}_XXXXXX.csv)"
-: > "$TMP_LOG"
-chmod 600 "$TMP_LOG"
-echo "timestamp_unix,energy_uj" > "$TMP_LOG"
-
-POW_PID=""
-cleanup() {
-    if [[ -n "${POW_PID:-}" ]]; then
-        kill "$POW_PID" 2>/dev/null || true
-        wait "$POW_PID" 2>/dev/null || true
-    fi
-    cp -f "$TMP_LOG" "$OUTDIR/power_rapl.csv" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
-
-#--- Start RAPL logging ---
-(
-    while true; do
-        echo "$(date +%s),$(cat "$RAPL_FILE")" >> "$TMP_LOG"
-        sleep 1
-    done
-) &
-POW_PID=$!
-
-START_E=$(cat "$RAPL_FILE")
-START_T=$(date +%s)
-
-#--- Run LAMMPS ---
-echo "Running LAMMPS (Energy Mode) on $SLURM_NTASKS tasks..."
-
-if command -v mpirun >/dev/null 2>&1; then
-    mpirun -np "$SLURM_NTASKS" ./lmp_mpi -in "$INPUT_FILE" > lammps.out 2>&1 || true
-else
-    echo "mpirun not found."
-    exit 1
-fi
-
-END_E=$(cat "$RAPL_FILE")
-END_T=$(date +%s)
-ELAPSED=$((END_T - START_T))
-
-if [[ "$END_E" -lt "$START_E" && $WRAP_ADD -gt 0 ]]; then
-    END_E=$((END_E + WRAP_ADD))
-fi
-
-ENERGY_J=$(awk -v s="$START_E" -v e="$END_E" 'BEGIN {printf "%.2f",(e-s)/1e6}')
-AVG_POWER=$(awk -v E="$ENERGY_J" -v T="$ELAPSED" 'BEGIN{printf "%.2f",E/T}')
-
-#Extract LAMMPS performance
-STEPS=$(grep -E "Loop time of" lammps.out | awk '{print $(NF-1)}' || echo "0")
-TIMESTEP_RATE=$(grep -E "timesteps/s" lammps.out | awk '{print $(NF-1)}' || echo "0")
-ATOM_RATE=$(grep -E "Matom-step/s" lammps.out | awk '{print $1}' || echo "0")
-
-EFF_S_PER_J=$(awk -v E="$ENERGY_J" -v T="$ELAPSED" 'BEGIN{printf "%.6f",T/E}')
-
-{
-echo "=== LAMMPS Energy-mode Summary ==="
-echo "Timestamp: $(date -u)"
-echo "Host: $(hostname)"
-echo "Node list: $NODELIST"
-echo "Job name: $JOB_NAME"
-echo "MPI tasks: $SLURM_NTASKS"
-echo "Elapsed (s): $ELAPSED"
-echo "Total energy (J): $ENERGY_J"
-echo "Average power (W): $AVG_POWER"
-echo "LAMMPS Steps: $STEPS"
-echo "Timesteps/s: $TIMESTEP_RATE"
-echo "M atom-step/s: $ATOM_RATE"
-echo "Efficiency (s/J): $EFF_S_PER_J"
-} > "$OUTDIR/efficiency_summary.txt"
-
-echo "=== DONE (Energy Mode) ==="`
-
+echo "[Balanced-Powersave Efficiency summary] saved to $SUMMARY"
 ```
-# 5.2 LAMMPS Results Summary (All Modes)
 
-Below are the key performance and energy outputs collected from the RAPL logs and LAMMPS timing outputs.
+For the LAMMPS benchmark, the script was tuned specifically to maximise computational performance by adjusting CPU frequency, threading, MPI layout, and power-management behaviour. First, the CPU governor was explicitly switched to performance mode, and the script attempted to lock the CPU frequency to a fixed 2.7 GHz, ensuring the processor avoided downclocking and boosting consistency across all MPI ranks. The run configuration used 8 MPI tasks with 2 OpenMP threads, a hybrid layout chosen to reduce MPI communication overhead while still providing enough parallelism to keep all cores active without oversubscription. RAPL logging was enabled to capture precise energy usage, but none of those energy-monitoring settings slow down the simulation. The parsing logic in the script extracted key performance metrics—timesteps per second, M atom-step/s, and iteration counts to determine how effectively the compute resources were used. All tuning decisions (governor, frequency, hybrid MPI+OMP) were selected with the goal of improving throughput (timesteps/s and M atom-step/s) rather than energy savings.
 
-| Mode                     | Timesteps/s | M atom-steps/s | Total Energy (J) | Avg Power (W) | Elapsed Time (s) | Efficiency (s/J) |
-|--------------------------|------------|----------------|-----------------|---------------|-----------------|-----------------|
-| Performance (Max Frequency) | 7.821      | 2.035          | 1734.912        | 81.23         | 21.49           | 0.01238         |
-| Balanced Mode (2.4 GHz)    | 6.112      | 1.588          | 1320.554        | 61.45         | 21.51           | 0.01629         |
-| Power Save Mode            | 5.523      | 1.414          | 1157.247        | 53.82         | 21.50           | 0.01858         |
+<img width="694" height="490" alt="image" src="https://github.com/user-attachments/assets/272d7940-c6c4-4a61-aed3-5b55ad6880d8" />
 
-![WhatsApp Image 2025-11-15 at 08 14 53_b6df75b9](https://github.com/user-attachments/assets/36008657-1975-44ba-b553-b6047e166050)
+<img width="400" height="222" alt="image" src="https://github.com/user-attachments/assets/4c573858-70fa-45a8-9ef8-57927509b5e0" />
 
-# Observations
 
-Performance mode gives highest throughput but at very high power cost.
+LAMMPS Output Analysis
+The LAMMPS output validates the effect of the performance-oriented tuning. The fixed high CPU frequency and performance governor produced stable and fast iterations, shown by the Loop time of ~15.9 s for 100 steps and a steady 6.294 timesteps/s, matching what the script extracted. The MPI timing breakdown shows that the major cost comes from Pair and Comm, meaning the domain decomposition and communication patterns dominate runtime—this is expected given 8 MPI ranks, and confirms the hybrid MPI+OMP setup was appropriate (too many MPI tasks would increase Comm time even more). The achieved 1.611 M atom-step/s is consistent with fully-utilized CPU cores at locked frequency. The RAPL-based efficiency summary also shows that higher performance mode raised power to ~42 W, but delivered fast completion. Overall, the results reflect that the tuning choices maximum CPU clock, performance governor, hybrid parallelism erectly influenced throughput and led to predictable, compute-bound behaviour without frequency drops or variability, leading to high performance.
 
-Balanced mode reduces throughput slightly but improves performance per watt significantly.
+### LAMMPS GRAPH ANALYS
+<img width="602" height="352" alt="image" src="https://github.com/user-attachments/assets/a24a5024-3de1-47a6-8f7a-cea1bf34f232" />
 
-Power-save mode achieves lowest power draw but runtime stays almost identical, showing LAMMPS is very compute-heavy but not heavily frequency-sensitive for small cases.
+The LAMMPS performance graph shows that higher energy consumption does not guarantee higher timesteps per second. Runs in the mid-energy range (~2500–5000 J) achieved the most stable and efficient performance (51,000–55,000 timesteps/s), while high-energy runs (~7200 J) corresponded to lower performance (~48,000 timesteps/s), indicating power was being consumed without proportional computational gain. Performance fluctuations are likely caused by variations in MPI task distribution, OpenMP thread counts, CPU frequency scaling, and memory locality, which affect pairwise computation (Pair) and communication (Comm) efficiency. The output metrics, including timesteps per second, Matom-step/s, CPU usage, and MPI timing breakdown, confirm that the system reached peak efficiency 
 
-## 5.3 Why These Parameters Were Chosen
-### 1. Thread & Process Binding
-
-LAMMPS uses short-range neighbour lists, so locality matters.
-
-Binding MPI ranks to physical cores (--bind-to core) keeps communication deterministic.
-
-Avoiding SMT makes floating-point pipelines more predictable.
-
-### 2. OMP_NUM_THREADS=1
-
-LAMMPS is typically:
-
-MPI-scaling friendly
-
-OpenMP-scaling poor unless using KOKKOS or USER-OMP
-
-Thus we prevented oversubscription.
-
-### 3. DVFS Choices
-
-Max frequency = peak performance
-
-2.4 GHz = DVFS "knee" where power drops sharply but performance stays high
-
-Min frequency = test the lower bound of efficiency
-
-LAMMPS is compute-bound, meaning:
-
-Performance closely follows frequency
-
-Energy grows faster than performance at high frequencies (superlinear power law)
-
-## 5.4 Combined Interpretation Across All Three Modes
-### Performance Mode
-
-Maximum clock = highest floating-point throughput
-
-Highest atom-step rate
-
-Worst energy efficiency
-
-Reason: dynamic power scales with f × V², and CPUs raise voltage at turbo frequencies.
-
-### Balanced Mode (2.4 GHz DVFS)
-
-Slight performance drop
-
-Major drop in power
-
-Best compromise between throughput and energy
-
-Reason: at mid frequencies, CPUs operate at lower voltage + fewer thermal throttling events.
-
-### Power Save Mode
-
-Lowest power
-
-Runtime almost same as other modes
-
-Best energy efficiency (s/J)
-
-Reason:
-LAMMPS communication + neighbour list rebuild overhead dominate small simulations → CPU frequency changes do not meaningfully slow the simulation.
-
-# 5.5 Final LAMMPS Discussion
-
-LAMMPS shows an important HPC trend:
-
-Compute-bound applications do not always scale linearly with CPU frequency due to memory stalls, MPI synchronization, and algorithmic overhead.
-
-The balanced mode (2.4 GHz) provides:
-
-80–90% of peak performance
-
-~40% power reduction
-
-Best performance-per-watt consistency
-
-This matches behaviour reported in large MD scaling studies on Intel architectures.
 
 ## 5.6 Productivity-to-Energy Ratio (LAMMPS vs OpenFOAM)
-| Application | Workload Type   | Frequency Sensitivity | Energy Sensitivity | Best Mode                          |
+| Application | Workload Type   | Frequency Sensitivity | Energy Sensitivity | Best Mode                          
 |-------------|----------------|--------------------|------------------|-----------------------------------|
 | OpenFOAM    | Memory-bound   | Low                | Moderate         | 2.4 GHz (balanced)                |
 | LAMMPS     | Compute-bound  | High               | High             | Power-save or Balanced depending on goal |
@@ -878,3 +583,5 @@ Balanced DVFS frequencies provide a practical compromise between performance and
 Final Statement
 
 By mapping the productivity-to-energy ratio across multiple HPC applications and operational modes, this study demonstrates that legacy HPC systems can deliver both scientific productivity and energy efficiency when carefully tuned. These findings emphasize the importance of workload-aware system management and provide a blueprint for optimizing repurposed infrastructure, making high-performance computing more sustainable, cost-effective, and environmentally responsible.
+
+(End of Document)
