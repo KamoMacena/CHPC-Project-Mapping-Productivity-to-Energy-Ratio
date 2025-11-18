@@ -325,12 +325,16 @@ Table 11: OpenFOAM single-node performance and energy efficiency comparison acro
 
 ### Comparative Analysis and Correlation
 
-- The OpenFOAM results show a more pronounced shift in the **efficiency curve** compared to LAMMPS.  
-- The **optimal energy efficiency** for OpenFOAM occurs at [Insert Optimal GHz from table], typically **lower than the optimal frequency for LAMMPS**.  
-- This confirms that OpenFOAM performance is heavily influenced by **memory subsystem performance**. Increasing CPU clock speed beyond a threshold yields **minimal performance gain** while **power consumption rises significantly**.  
-- Correlation between OpenFOAM performance and CPU floating-point performance is weaker than for LAMMPS, while correlation with **memory bandwidth** and memory channels is stronger.  
+The benchmarking results reveal a marked difference in energy-efficiency behavior between OpenFOAM and LAMMPS. Specifically, OpenFOAM exhibits a more pronounced shift in the productivity-to-energy curve compared to LAMMPS, reflecting its sensitivity to memory subsystem characteristics. The optimal energy efficiency for OpenFOAM occurs at 3,4GHz, which is generally lower than the optimal CPU frequency observed for LAMMPS. This indicates that increasing CPU clock speed beyond a certain threshold provides diminishing returns for OpenFOAM, as performance becomes limited by memory bandwidth and latency, while power consumption continues to rise.
 
-Scatter plots (Figure 1 and Figure 2) visually demonstrate the trade-off between performance and power, clearly identifying the optimal frequency point for both applications.
+Correlation analysis further supports this observation: OpenFOAM’s performance demonstrates a weaker relationship with raw CPU floating-point capability compared to LAMMPS, whereas the correlation with memory bandwidth and the number of memory channels is significantly stronger. In contrast, LAMMPS, being a compute-intensive application, benefits more directly from higher CPU frequencies and floating-point throughput. Scatter plots (Figures 1 and 2) effectively illustrate these trade-offs, highlighting the distinct optimal frequency points for each application and providing a visual framework for understanding the interplay between performance and energy consumption across differing workload characteristics.
+
+These findings have practical implications for high-performance computing resource management: by identifying workload-specific optimal operating points, system administrators can implement energy-aware scheduling and hardware allocation strategies that maximize computational productivity while minimizing energy consumption. This approach enables more sustainable and cost-effective HPC operation, particularly when balancing compute-intensive and memory-bound workloads on heterogeneous hardware platforms.
+
+
+![WhatsApp Image 2025-11-15 at 07 42 20_7e6eb269](https://github.com/user-attachments/assets/e747c192-8dcc-406b-89e7-4cd8ae9696fb)
+
+Figure 1: Correlation Graph showing the Output results for OpenFoam
 
 ---
 
@@ -345,9 +349,9 @@ Parallelism in LAMMPS is achieved through domain decomposition and message-passi
 | Aspect                | Detail |
 |-----------------------|--------|
 | LAMMPS Version        | LAMMPS 22 Jul 2025, Update 1 |
-| Benchmark Case        | [Specify case, e.g., lj or rheo] |
-| Problem Size          | [Specify atom count, e.g., 256,000 atoms] |
-| Scaling Type          | Strong Scaling (fixed problem size, variable cores) |
+| Benchmark Case        |  |
+| Problem Size          | 3000 atoms |
+| Scaling Type          | Strong Scaling  |
 | Key Metric (Productivity) | Timesteps per second (ts/s) |
 | Key Metric (Efficiency)  | Timesteps/s per Watt |
 
