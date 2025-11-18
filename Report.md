@@ -349,7 +349,7 @@ Parallelism in LAMMPS is achieved through domain decomposition and message-passi
 | Aspect                | Detail |
 |-----------------------|--------|
 | LAMMPS Version        | LAMMPS 22 Jul 2025, Update 1 |
-| Benchmark Case        |  |
+| Benchmark Case        |  3D Lennard-Jones (LJ) melt |
 | Problem Size          | 3000 atoms |
 | Scaling Type          | Strong Scaling  |
 | Key Metric (Productivity) | Timesteps per second (ts/s) |
@@ -412,10 +412,11 @@ Monitoring these metrics ensures that energy-efficient configurations do not com
 
 **Key Metrics:**
 
-- **Speedup (S(N)):**  
-\[
-S(N) = \frac{T(1)}{T(N)}
-\]  
+- **Speedup (S(N)):**
+  $$
+\mathbf{S(N) = \frac{T(1)}{T(N)}}
+$$
+ 
 where \(T(1)\) is the runtime on a single core and \(T(N)\) is the runtime on \(N\) cores.
 
 - **Parallel Efficiency (E(N)):**  
