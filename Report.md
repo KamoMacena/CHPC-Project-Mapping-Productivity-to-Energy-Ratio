@@ -1,13 +1,13 @@
 
 # 1. Introduction
 
-High-Performance Computing (HPC) systems are foundational to scientific discovery, enabling simulations and analyses that are otherwise infeasible. Yet, as computational demand escalates, the associated energy footprint has emerged as a critical limiting factor for both operational sustainability and cost-efficiency. Modern HPC facilities are power-hungry: the balance between computational productivity and energy consumption is no longer merely a secondary concern but a central metric that dictates hardware design, scheduling policies, and workload optimization strategies.
+High-Performance Computing (HPC) systems are foundational to scientific discovery, enabling simulations and analyses that are otherwise infeasible. Yet, as computational demand escalates, the associated energy footprint has emerged as a critical limiting factor for both operational sustainability and cost-efficiency. Modern HPC facilities are power hungry: the balance between computational productivity and energy consumption is no longer merely a secondary concern but a central metric that dictates hardware design, scheduling policies, and workload optimization strategies.
 
-Traditional performance evaluations of HPC applications emphasize raw throughput—measured in FLOPS, timesteps per second, or iterations per second—without explicitly accounting for the power costs incurred to achieve those performance gains. However, a nuanced understanding of **productivity-to-energy trade-offs** is essential in the current landscape, where energy constraints may outweigh peak computational capability in determining overall system efficiency. In other words, **maximum performance does not equate to optimal productivity** when energy consumption is considered.
+Traditional performance evaluations of HPC applications emphasize raw throughput measured in FLOPS, timesteps per second, or iterations per second without explicitly accounting for the power costs incurred to achieve those performance gains. However, a nuanced understanding of **productivity-to-energy trade-offs** is essential in the current landscape, where energy constraints may outweigh peak computational capability in determining overall system efficiency. In other words, **maximum performance does not equate to optimal productivity** when energy consumption is considered.
 
-The energy consumed by HPC applications is governed by multiple interacting factors. At the node level, processor frequency and voltage, memory subsystem bandwidth and latency, interconnect efficiency, and accelerator utilization all contribute to the instantaneous power draw. At the workload level, application characteristics—compute-bound versus memory-bound, communication patterns, and I/O intensity—dictate how hardware resources are stressed and, consequently, how energy is expended. These dependencies are complex, nonlinear, and workload-specific, underscoring the need for systematic benchmarking across a representative set of applications.
+The energy consumed by HPC applications is governed by multiple interacting factors. At the node level, processor frequency and voltage, memory subsystem bandwidth and latency, interconnect efficiency, and accelerator utilization all contribute to the instantaneous power draw. At the workload level, application characteristics compute bound versus memory-bound, communication patterns, and I/O intensity dictate how hardware resources are stressed and, consequently, how energy is expended. These dependencies are complex, nonlinear, and workload specific, underscoring the need for systematic benchmarking across a representative set of applications.
 
-In this study, we aim to **map energy to productivity** across representative HPC applications, quantifying the **energy efficiency ratio**—a measure of computational output per unit of energy consumed. By performing controlled experiments on repurposed legacy hardware, we explicitly manipulate CPU clock frequencies and leverage job scheduling tools (Slurm) to systematically explore the trade-offs between raw performance and energy consumption. Our focus applications, **LAMMPS** (compute-intensive molecular dynamics) and **OpenFOAM** (memory-bound computational fluid dynamics), represent contrasting workload characteristics, allowing us to generalize insights on hardware-dependent energy behavior.
+In this study, we aim to **map energy to productivity** across representative HPC applications, quantifying the **energy efficiency ratio** which is a measure of computational output per unit of energy consumed. By performing controlled experiments on repurposed legacy hardware, we explicitly manipulate CPU clock frequencies and leverage job scheduling tools (Slurm) to systematically explore the trade-offs between raw performance and energy consumption. Our focus applications, **LAMMPS** (compute-intensive molecular dynamics) and **OpenFOAM** (memory-bound computational fluid dynamics), represent contrasting workload characteristics, allowing us to generalize insights on hardware-dependent energy behavior.
 
 Through this investigation, we aim to answer fundamental questions:  
 
@@ -177,7 +177,7 @@ Table 10: Summary of OpenFOAM benchmark parameters.
 To evaluate productivity and energy efficiency for OpenFOAM on repurposed HPC hardware, this study uses a set of core computational and energy-related metrics. These metrics capture both simulation performance and energy cost, allowing detailed analysis of how CPU frequency, NUMA configuration, and core placement influence overall efficiency on legacy HPC systems.
 
 
-#### 1. Wall-Clock Time
+### 1. Wall-Clock Time
 
 Wall-clock time represents the total real elapsed time from the beginning of the simulation to completion. It is the most intuitive measure of productivity, as shorter wall-clock time means faster delivery of results.
 
@@ -190,7 +190,7 @@ However, wall-clock time alone is insufficient for deeper analysis because it do
 For this study, wall-clock time was paired with energy consumption (Joules) to calculate productivity-per-watt under different hardware configurations.
 
 
-#### 2. Iteration Time and Iteration Rate
+### 2. Iteration Time and Iteration Rate
 
 OpenFOAM performs iterative updates of the governing equations. Two important metrics are:
 
@@ -244,17 +244,17 @@ Residual monitoring guaranteed scientific consistency across all energy-efficien
 
 Because OpenFOAM is parallelized using MPI, parallel performance metrics were required to understand scaling behaviour on the tested hardware.
 
-- **Speedup:** Speedup measures how much faster a parallel implementation of an application executes compared to its serial (single-core) execution. It is defined as: 
+ **5.1 Speedup:** Speedup measures how much faster a parallel implementation of an application executes compared to its serial (single-core) execution. It is defined as: 
 
 The speedup of a parallel application is defined as:
 
-\[
-S(N) = \frac{T(1)}{T(N)}
-\]
+**\[ S(N) = \frac{T(1)}{T(N)} \]**
 
-  Where:
+ Where:
 S(N) = Speedup achieved using N processors
+
 T(1) = Execution time using a single processor
+
 T(N) = Execution time using N processors
 
 Interpretation:
@@ -262,17 +262,22 @@ S(N) = 1: No speedup (parallelization ineffective)
 S(N) = N: Ideal linear speedup (perfect parallel scaling)
 S(N) > N: Super-linear speedup (rare, usually due to cache effects)
 
-- **Parallel Efficiency:**  Parallel efficiency quantifies how effectively the computational resources are utilized. It normalizes speedup by the number of processors:
-  \[
+
+**2.2  Parallel Efficiency:**  Parallel efficiency quantifies how effectively the computational resources are utilized. It normalizes speedup by the number of processors:
+- 
+  **\[
   E(N) = \frac{S(N)}{N} = \frac{T(1)}{N \cdot T(N)}
-\[
+  \]**
+
   Where:
 
 E(N) = Efficiency of using N processors
 
 Interpretation:
 E(N) = 1 (100% efficiency): Perfect resource utilization
+
 E(N) < 1: Some overhead or idle time reduces efficiency
+
 E(N) > 1: Super-linear efficiency (rare)
 
 Strong-scaling behaviour was evaluated by running the same case on increasing core counts. Scaling efficiency typically dropped at higher core counts due to:
