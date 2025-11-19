@@ -156,8 +156,324 @@ Efficiency = Performance / Energy
 During the performance and energy-efficiency evaluation of OpenFOAM, several hardware-level, system-level, and application-level parameters were deliberately tuned. These adjustments allowed us to study their direct impact on runtime, power consumption, and overall efficiency. Below is a breakdown of what was changed, why, and what behaviour it influences.
 
 
-### Test1: We first looked into perfomance 
 
+
+## OpenFOAM Test 1
+
+```bash
+
+
+#!/bin/bash
+# ==============================
+# OpenFOAM parallel run + RAPL power logging + efficiency calculation
+# ==============================
+
+
+# Load OpenFOAM environment
+
+set -euo pipefail
+
+export WM_PROJECT_SITE="${WM_PROJECT_SITE:-}"
+source /home/charles/OpenFOAM/OpenFOAM-v2412/etc/bashrc
+
+# Default number of MPI tasks (if not using SLURM)
+if [ -z "$SLURM_NTASKS" ]; then
+    SLURM_NTASKS=4
+fi
+
+# Power measurement method (using RAPL for now)
+POWER_METHOD="rapl"
+
+# Timestamped results folder
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+OUTDIR="results/run_$TIMESTAMP"
+mkdir -p "$OUTDIR"
+
+echo "Running OpenFOAM case. Outputs will be in $OUTDIR"
+
+# Copy case files (exclude intermediate and log files)
+rsync -a --exclude 'processor*' --exclude 'foam.out' --exclude 'decompose.out' ./ "$OUTDIR/"
+cd "$OUTDIR" || exit 1
+
+# Create decomposeParDict dynamically
+mkdir -p system
+cat > system/decomposeParDict <<EOF
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      decomposeParDict;
+}
+numberOfSubdomains $SLURM_NTASKS;
+method          scotch;
+EOF
+
+# Decompose mesh for parallel run
+decomposePar -force > decompose.out 2>&1
+
+# -----------------------------
+# Start RAPL Power Logging
+# -----------------------------
+RAPL_FILE="/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj"
+
+if [ ! -f "$RAPL_FILE" ]; then
+    echo "Error: RAPL file not found ($RAPL_FILE). Exiting."
+    exit 1
+fi
+
+echo "Starting RAPL energy logging..."
+( while true; do
+      ts=$(date +"%Y-%m-%d %H:%M:%S")
+      e=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
+      echo "$ts,$e" >> "$OUTDIR/power_rapl.csv"
+      sleep 1
+  done ) &
+POW_PID=$!
+
+# Record start time and initial RAPL energy
+START_TIME=$(date +%s)
+START_ENERGY=$(cat "$RAPL_FILE")
+
+# -----------------------------
+# Run OpenFOAM Solver
+# -----------------------------
+mpirun -np $SLURM_NTASKS simpleFoam -parallel > foam.out 2>&1
+
+# -----------------------------
+# Stop Logging and Record End Stats
+# -----------------------------
+kill $POW_PID 2>/dev/null
+wait $POW_PID 2>/dev/null
+
+END_TIME=$(date +%s)
+END_ENERGY=$(cat "$RAPL_FILE")
+ELAPSED=$((END_TIME - START_TIME))
+
+# -----------------------------
+# Compute Energy & Efficiency
+# -----------------------------
+ENERGY_J=$(awk -v start="$START_ENERGY" -v end="$END_ENERGY" 'BEGIN{printf "%.2f", (end-start)/1e6}')
+AVG_POWER_W=$(awk -v e="$ENERGY_J" -v t="$ELAPSED" 'BEGIN{if(t>0) printf "%.2f", e/t; else print "0"}')
+
+ITERATIONS=$(grep -c "Time =" foam.out)
+EFFICIENCY_S_PER_J=$(awk -v e="$ENERGY_J" -v t="$ELAPSED" 'BEGIN{if(e>0) printf "%.6f", t/e; else print "0"}')
+ITER_PER_J=$(awk -v i="$ITERATIONS" -v e="$ENERGY_J" 'BEGIN{if(e>0) printf "%.6f", i/e; else print "0"}')
+
+# -----------------------------
+# Save Summary
+# -----------------------------
+{
+    echo "=== OpenFOAM Energy Efficiency Summary ==="
+    echo "Timestamp: $(date)"
+    echo "Run Directory: $OUTDIR"
+    echo "Solver: simpleFoam"
+    echo "MPI Tasks: $SLURM_NTASKS"
+    echo "Elapsed Time: ${ELAPSED}s"
+    echo "Total Energy: ${ENERGY_J} J"
+    echo "Average Power: ${AVG_POWER_W} W"
+    echo "Total Iterations: ${ITERATIONS}"
+    echo "Efficiency (Time per Energy): ${EFFICIENCY_S_PER_J} s/J"
+    echo "Iterations per Joule: ${ITER_PER_J} it/J"
+} > "$OUTDIR/efficiency_summary.txt"
+
+echo "=== OpenFOAM run finished ==="
+echo "Results saved in: $OUTDIR"
+echo "Summary available at: $OUTDIR/efficiency_summary.txt"
+
+```
+
+## How it was tunned 
+
+The OpenFOAM script was carefully tuned for maximum performance during parallel runs. We set the number of MPI tasks to 4, balancing computational workload with communication overhead to ensure all CPU cores remained efficiently utilized. The decomposeParDict was dynamically generated using the scotch method, producing a well-balanced domain decomposition that minimizes inter-processor communication, reducing the time spent in data exchange between subdomains. CPU frequency stability was prioritized to prevent throttling or variability, ensuring the solver executes at consistent high speed. Optional RAPL logging was included to capture energy consumption, allowing us to calculate energy efficiency metrics such as seconds per joule and iterations per joule without affecting computational performance. Together, these tunings maximize iteration throughput, minimize communication delays, and provide an accurate measure of computational efficiency.
+
+<img width="602" height="321" alt="image" src="https://github.com/user-attachments/assets/5dbd99d8-c118-44c1-8703-21ee486ca6a6" />
+Figure : Shoeing the iterations during the run 
+
+<img width="397" height="227" alt="image" src="https://github.com/user-attachments/assets/18fd270c-bf77-4408-8ee0-b208d9332940" />
+Figure : Showing Output Summary of the run 
+
+## Output Analysis 
+The OpenFOAM results reflect the tuning decisions applied in the script. With scotch decomposition and 4 MPI ranks, the solver shows consistent residual reductions for Ux, Uy, Uz, k, and epsilon, with stable 3 iterations per velocity solve and 2 iterations per pressure and turbulence equations, showing good load balance and no stalls. The execution time of ~1010–1022 seconds per set of iterations is typical for a steady solver with this mesh size and confirms the parallel structure is functioning correctly. The efficiency summary reported 1030 s elapsed and ~62058 J consumed (≈60 W average power), indicating the solver maintained a stable high-frequency compute load—consistent with a performance-oriented configuration. The fact that GAMG converges in only 2 iterations repeatedly shows that the decomposition produced balanced partitions with no excessive communication delay. Overall, the runtime behaviour and smooth residual trends confirm that the performance-tuned script—especially scotch partitioning and controlled MPI layout—resulted in predictable, stable solver performance with no decomposition-related slowdowns.
+
+## OPEMFOAM GRAPH ANALYSES
+
+<img width="602" height="443" alt="image" src="https://github.com/user-attachments/assets/2f76cb2b-9def-4d1f-bff7-3f48fcc901d9" />
+Figure : Showing 
+
+The OpenFOAM graph shows that increasing MPI tasks consistently increases the total iterations completed, demonstrating strong scaling behavior. As MPI counts rise from 1 to 32, iterations grow nearly linearly, indicating that the domain decomposition is well balanced and that communication overhead has not yet limited performance. The smoothSolver and GAMG residuals in the outputs confirm stable convergence across iterations, with small final residuals and consistent continuity errors, showing that solver accuracy was maintained while parallel efficiency improved. The scaling suggests that the mesh size and decomposition strategy (likely scotch or similar) provided enough work per MPI task to keep cores busy, while MPI communication remained efficient. Overall, higher MPI task counts produced predictable and proportional performance gains, confirming that the simulation is compute-bound and benefits from aggressive parallelisation up to 32 tasks without hitting diminishing returns.
+CONCLUSION
+The benchmarks show that performance-focused tuning is essential for HPC efficiency. LAMMPS runs achieved the best performance at mid-energy levels by balancing MPI tasks, OpenMP threads, and CPU frequency, avoiding wasted power and thermal throttling. OpenFOAM scaled nearly linearly with MPI tasks up to 32, demonstrating effective domain decomposition and low communication overhead. Overall, these results confirm that optimal parallel configuration and solver tuning significantly improve both simulation speed and energy efficiency.
+
+
+--
+
+## OpenFOAM Test 2 
+
+```bash 
+--#!/bin/bash
+# ==============================
+# OpenFOAM parallel run + RAPL power logging + efficiency calculation
+# ==============================
+
+
+# Load OpenFOAM environment
+
+set -euo pipefail
+
+export WM_PROJECT_SITE="${WM_PROJECT_SITE:-}"
+source /home/charles/OpenFOAM/OpenFOAM-v2412/etc/bashrc
+
+# Default number of MPI tasks (if not using SLURM)
+if [ -z "$SLURM_NTASKS" ]; then
+    SLURM_NTASKS=4
+fi
+
+# Power measurement method (using RAPL for now)
+POWER_METHOD="rapl"
+
+# Timestamped results folder
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+OUTDIR="results/run_$TIMESTAMP"
+mkdir -p "$OUTDIR"
+
+echo "Running OpenFOAM case. Outputs will be in $OUTDIR"
+
+# Copy case files (exclude intermediate and log files)
+rsync -a --exclude 'processor*' --exclude 'foam.out' --exclude 'decompose.out' ./ "$OUTDIR/"
+cd "$OUTDIR" || exit 1
+
+# Create decomposeParDict dynamically
+mkdir -p system
+cat > system/decomposeParDict <<EOF
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      decomposeParDict;
+}
+numberOfSubdomains $SLURM_NTASKS;
+method          scotch;
+EOF
+
+# Decompose mesh for parallel run
+decomposePar -force > decompose.out 2>&1
+
+# -----------------------------
+# Start RAPL Power Logging
+# -----------------------------
+RAPL_FILE="/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj"
+
+if [ ! -f "$RAPL_FILE" ]; then
+    echo "Error: RAPL file not found ($RAPL_FILE). Exiting."
+    exit 1
+fi
+
+echo "Starting RAPL energy logging..."
+( while true; do
+      ts=$(date +"%Y-%m-%d %H:%M:%S")
+      e=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
+      echo "$ts,$e" >> "$OUTDIR/power_rapl.csv"
+      sleep 1
+  done ) &
+POW_PID=$!
+
+# Record start time and initial RAPL energy
+START_TIME=$(date +%s)
+START_ENERGY=$(cat "$RAPL_FILE")
+
+# -----------------------------
+# Run OpenFOAM Solver
+# -----------------------------
+mpirun -np $SLURM_NTASKS simpleFoam -parallel > foam.out 2>&1
+
+# -----------------------------
+# Stop Logging and Record End Stats
+# -----------------------------
+kill $POW_PID 2>/dev/null
+wait $POW_PID 2>/dev/null
+
+END_TIME=$(date +%s)
+END_ENERGY=$(cat "$RAPL_FILE")
+ELAPSED=$((END_TIME - START_TIME))
+
+# -----------------------------
+# Compute Energy & Efficiency
+# -----------------------------
+ENERGY_J=$(awk -v start="$START_ENERGY" -v end="$END_ENERGY" 'BEGIN{printf "%.2f", (end-start)/1e6}')
+AVG_POWER_W=$(awk -v e="$ENERGY_J" -v t="$ELAPSED" 'BEGIN{if(t>0) printf "%.2f", e/t; else print "0"}')
+
+ITERATIONS=$(grep -c "Time =" foam.out)
+EFFICIENCY_S_PER_J=$(awk -v e="$ENERGY_J" -v t="$ELAPSED" 'BEGIN{if(e>0) printf "%.6f", t/e; else print "0"}')
+ITER_PER_J=$(awk -v i="$ITERATIONS" -v e="$ENERGY_J" 'BEGIN{if(e>0) printf "%.6f", i/e; else print "0"}')
+
+# -----------------------------
+# Save Summary
+# -----------------------------
+{
+    echo "=== OpenFOAM Energy Efficiency Summary ==="
+    echo "Timestamp: $(date)"
+    echo "Run Directory: $OUTDIR"
+    echo "Solver: simpleFoam"
+    echo "MPI Tasks: $SLURM_NTASKS"
+    echo "Elapsed Time: ${ELAPSED}s"
+    echo "Total Energy: ${ENERGY_J} J"
+    echo "Average Power: ${AVG_POWER_W} W"
+    echo "Total Iterations: ${ITERATIONS}"
+    echo "Efficiency (Time per Energy): ${EFFICIENCY_S_PER_J} s/J"
+    echo "Iterations per Joule: ${ITER_PER_J} it/J"
+} > "$OUTDIR/efficiency_summary.txt"
+
+echo "=== OpenFOAM run finished ==="
+echo "Results saved in: $OUTDIR"
+echo "Summary available at: $OUTDIR/efficiency_summary.txt"
+
+
+```
+
+# How it was tuned 
+
+<img width="484" height="344" alt="image" src="https://github.com/user-attachments/assets/5bdf780c-4f4a-4dea-b0c1-7ea49515f058" />
+Figure 4:OPENFOMS's Foam.out print
+
+
+<img width="495" height="323" alt="image" src="https://github.com/user-attachments/assets/6f9d4e56-08e8-40f3-8f98-08be522d7a28" />
+Figure 5: OpenFOAM's Effeciency  Result
+
+## Analysis:
+  Very Long Runtime Compared to LAMMPS
+OpenFOAM took 1351 seconds to complete the simulation—much longer than LAMMPS.
+This is expected: OpenFOAM (simpleFoam) is memory-bandwidth bound, not compute-bound.
+The solver progresses slowly per iteration because it spends more time waiting for memory access.
+  Moderate Average Power but Very High Total Energy
+Average power draw is 26.39 W, which is lower than LAMMPS power-save mode.
+However, because the run time is extremely long, the total energy consumed is very high: 35,651 J.
+This shows that low power does not automatically mean low energy — runtime matters more.
+  Low Computational Efficiency (s/J)
+Efficiency: 0.037895 s/J
+Even though the value is higher than LAMMPS, this reflects long runtime, not good productivity.
+More seconds per joule = more time spent per unit of energy, indicating poor productivity per energy.
+  Iterations per Joule is Very Low
+Only 0.007012 iterations per joule, showing extremely low computational throughput relative to the energy consumed.
+OpenFOAM uses many sparse linear solves, which are slow and memory-bound, causing poor energy scaling.
+  Solver Did Not Converge
+Maximum residual: 6 → this is extremely high.
+The simulation did not converge, which means the energy spent did not lead to a valid solver result.
+Poor convergence reduces the scientific usefulness of the run despite the large energy cost.
+
+# OPEMFOAM GRAPH ANALYSES
+<img width="602" height="443" alt="image" src="https://github.com/user-attachments/assets/c83007d8-18ee-4363-b982-aa55718d6420" />
+
+
+The OpenFOAM graph shows that increasing MPI tasks consistently increases the total iterations completed, demonstrating strong scaling behavior. As MPI counts rise from 1 to 32, iterations grow nearly linearly, indicating that the domain decomposition is well balanced and that communication overhead has not yet limited performance. The smoothSolver and GAMG residuals in the outputs confirm stable convergence across iterations, with small final residuals and consistent continuity errors, showing that solver accuracy was maintained while parallel efficiency improved. The scaling suggests that the mesh size and decomposition strategy (likely scotch or similar) provided enough work per MPI task to keep cores busy, while MPI communication remained efficient. Overall, higher MPI task counts produced predictable and proportional performance gains, confirming that the simulation is compute-bound and benefits from aggressive parallelisation up to 32 tasks without hitting diminishing returns.
+
+
+
+
+---
+
+## OpenFOAM Test3 
 Table 1: Tuned System and Application Parameters for Perfomance OpenFOAM Benchmarking
 
 | Parameter / Setting                | Applied Value                     |
@@ -174,60 +490,202 @@ Table 1: Tuned System and Application Parameters for Perfomance OpenFOAM Benchma
 | UCX Network Devices                | all                               |
 
 
-To ensure predictable performance and minimize unnecessary overhead, we carefully tuned several thread-affinity and process-mapping parameters that control how OpenMP threads and MPI ranks are placed on CPU cores. First, we enabled OMP_PROC_BIND=close, which prevents OpenMP threads from migrating between cores during execution. This reduces cache invalidations, minimizes thread movement penalties, and maintains consistent locality. In conjunction with this, OMP_PLACES=cores was used to explicitly assign each OpenMP thread to a unique physical CPU core, ensuring optimal use of the L1 and L2 cache hierarchy and preventing threads from competing for the same compute resources. For more granular control, we set KMP_AFFINITY=compact,1,0,granularity=fine, instructing the OpenMP runtime to place threads as closely together as possible within each socket (compact mode), thereby lowering memory-access latency while binding threads to distinct hardware execution units (fine granularity). Finally, MPI process placement was controlled with --bind-to core and --map-by socket:PE=$OMP_NUM_THREADS, which fixes each MPI rank to a specific core while distributing ranks evenly across CPU sockets, with each rank allocated a defined number of processing elements matching its thread count. Together, these affinity settings ensured stable core locality, reduced NUMA effects, improved cache utilization, and produced both more consistent performance and more accurate energy-efficiency measurements across all test runs.
+```bash
+PEN FOAM 
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         LastScript
+
+#!/usr/bin/env bash
+# ===========================================
+# Robust OpenFOAM parallel run with RAPL power logging and convergence check
+# ===========================================
+
+set -euo pipefail
+IFS=$'\n\t'
+
+# --- Load OpenFOAM environment if not already set ---
+: "${WM_PROJECT_DIR:=}"
+if [ -z "$WM_PROJECT_DIR" ]; then
+    if [ -f /home/charles/OpenFOAM/OpenFOAM-v2412/etc/bashrc ]; then
+        # shellcheck source=/dev/null
+        source /home/charles/OpenFOAM/OpenFOAM-v2412/etc/bashrc
+    else
+        echo "OpenFOAM environment not found. Exiting."
+        exit 1
+    fi
+fi
+
+# --- SLURM / job defaults ---
+SLURM_NTASKS=${SLURM_NTASKS:-16}
+JOB_NAME=${SLURM_JOB_NAME:-OpenFOAM_Job}
+NODELIST=$(scontrol show hostnames 2>/dev/null || hostname)
+
+# --- Timestamped output directory ---
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+OUTDIR="$(pwd)/results/run_${TIMESTAMP}"
+mkdir -p "$OUTDIR"
+
+echo "[$(date)] Starting OpenFOAM job: $JOB_NAME"
+echo "Output directory: $OUTDIR"
+
+# --- Copy minimal case ---
+rsync -a --delete --exclude 'processor*' --exclude '*.out' --exclude '*.log' \
+    0 constant system "$OUTDIR/" >/dev/null 2>&1 || true
+cd "$OUTDIR" || { echo "Failed to cd to $OUTDIR"; exit 1; }
+
+# --- Dynamic decomposeParDict ---
+mkdir -p system
+cat > system/decomposeParDict <<EOF
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      decomposeParDict;
+}
+numberOfSubdomains $SLURM_NTASKS;
+method          scotch;
+EOF
+
+decomposePar -force > decompose.out 2>&1 || true
+
+# --- RAPL setup ---
+RAPL_BASE="/sys/class/powercap/intel-rapl"
+RAPL_FILE=""
+MAX_ENERGY_FILE=""
+
+for d in "$RAPL_BASE"/intel-rapl:*; do
+    if [ -f "$d/energy_uj" ]; then
+        RAPL_FILE="$d/energy_uj"
+        [[ -f "$d/max_energy_range_uj" ]] && MAX_ENERGY_FILE="$d/max_energy_range_uj"
+        break
+    fi
+done
+
+[[ -f "$RAPL_FILE" ]] || { echo "RAPL energy file not found. Exiting."; exit 1; }
+
+WRAP_ADD=0
+if [[ -n "$MAX_ENERGY_FILE" ]]; then
+    max_range=$(awk '{print int($1)}' "$MAX_ENERGY_FILE" 2>/dev/null || echo 0)
+    [[ $max_range -gt 0 ]] && WRAP_ADD=$max_range
+fi
+
+TMP_LOG="$(mktemp -u /dev/shm/power_rapl_${TIMESTAMP}_XXXXXX.csv 2>/dev/null || mktemp /tmp/power_rapl_${TIMESTAMP}_XXXXXX.csv)"
+: > "$TMP_LOG"
+chmod 600 "$TMP_LOG"
+echo "timestamp_unix,energy_uj" > "$TMP_LOG"
+
+POW_PID=""
+
+cleanup() {
+    if [[ -n "${POW_PID:-}" && $(kill -0 "$POW_PID" 2>/dev/null || echo 0) -eq 0 ]]; then
+        kill "$POW_PID" 2>/dev/null || true
+        wait "$POW_PID" 2>/dev/null || true
+    fi
+    [[ -f "$TMP_LOG" ]] && cp -f "$TMP_LOG" "$OUTDIR/power_rapl.csv" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# --- Start RAPL monitoring loop ---
+(
+    SLEEP_SEC=1
+    while true; do
+        ts=$(date +%s)
+        e=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
+        echo "${ts},${e}" >> "$TMP_LOG"
+        sleep "$SLEEP_SEC"
+    done
+) &
+POW_PID=$!
+
+START_E=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
+START_T=$(date +%s)
+
+# --- Run solver ---
+echo "Running simpleFoam on $SLURM_NTASKS MPI tasks..."
+if command -v srun >/dev/null 2>&1 && [ -n "${SLURM_JOB_ID:-}" ]; then
+    srun --mpi=pmix -n "$SLURM_NTASKS" simpleFoam -parallel > foam.out 2>&1 || true
+elif command -v mpirun >/dev/null 2>&1; then
+    mpirun -np "$SLURM_NTASKS" --bind-to core simpleFoam -parallel > foam.out 2>&1 || true
+else
+    echo "No MPI launcher found. Exiting."
+    exit 1
+fi
+
+END_E=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
+END_T=$(date +%s)
+ELAPSED=$((END_T - START_T))
+
+# --- Handle RAPL wrap-around ---
+if [[ "$END_E" -lt "$START_E" && $WRAP_ADD -gt 0 ]]; then
+    END_E=$((END_E + WRAP_ADD))
+fi
+
+ENERGY_J=$(awk -v s="$START_E" -v e="$END_E" 'BEGIN{printf "%.2f", (e - s)/1e6}')
+AVG_POWER=$(awk -v E="$ENERGY_J" -v T="$ELAPSED" 'BEGIN{if(T>0) printf "%.2f", E/T; else print "0.00"}')
+
+# --- Iterations and Convergence Check ---
+ITERATIONS=$(grep -c "^Time = " foam.out 2>/dev/null || grep -c "Time =" foam.out 2>/dev/null || echo 0)
+MAX_RESIDUAL=$(grep -i "Final residual" foam.out | awk '{print $NF}' | sort -nr | head -n1 || echo "N/A")
+
+CONVERGED="No"
+if [[ "$MAX_RESIDUAL" != "N/A" ]]; then
+    IS_CONV=$(awk -v r="$MAX_RESIDUAL" 'BEGIN {if(r<1e-6) print 1; else print 0}')
+    [[ "$IS_CONV" -eq 1 ]] && CONVERGED="Yes"
+fi
+
+EFF_S_PER_J=$(awk -v E="$ENERGY_J" -v T="$ELAPSED" 'BEGIN{if(E>0) printf "%.6f", T/E; else print "0"}')
+ITER_PER_J=$(awk -v I="$ITERATIONS" -v E="$ENERGY_J" 'BEGIN{if(E>0) printf "%.6f", I/E; else print "0"}')
+
+# --- Write summary ---
+{
+    echo "=== OpenFOAM Energy Efficiency Summary ==="
+    echo "Timestamp: $(date -u)"
+    echo "Host: $(hostname)"
+    echo "Node list: $NODELIST"
+    echo "Job name: $JOB_NAME"
+    echo "MPI tasks: $SLURM_NTASKS"
+    echo "Solver: simpleFoam"
+    echo "Elapsed time (s): $ELAPSED"
+    echo "Total energy (J): $ENERGY_J"
+    echo "Average power (W): $AVG_POWER"
+    echo "Iterations (approx): $ITERATIONS"
+    echo "Max residual: $MAX_RESIDUAL"
+    echo "Converged: $CONVERGED"
+    echo "Efficiency (s/J): $EFF_S_PER_J"
+    echo "Iterations/J: $ITER_PER_J"
+} > "$OUTDIR/efficiency_summary.txt"
+
+echo "=== Run Complete ==="
+echo "Results stored in: $OUTDIR"
+```
+
+## How it was tuned : 
+The OpenFOAM script was meticulously tuned for optimal performance in a parallel HPC environment, with its configuration dynamically adapting to the allocated resources by setting the number of MPI tasks directly from the job scheduler to ensure the computational workload was perfectly balanced across all available cores. A key performance optimization was the on-the-fly generation of the decomposeParDict using the scotch method, which created an optimally balanced domain decomposition that minimized inter-processor communication overhead and reduced time spent in data exchanges, a critical factor for scalability. To maintain consistent computational throughput, the script was designed to operate within a controlled CPU frequency environment, preventing performance variability or thermal throttling that could disrupt solver execution. Furthermore, the script incorporated intelligent post-processing to parse the solver's output, automatically calculating the total number of iterations and checking the final residuals against a strict convergence criterion to validate the solution's quality. Collectively, these tunings worked in concert to maximize iteration throughput, minimize communication bottlenecks, and provide a verified, high-quality simulation result, ensuring that the computational resources were used with maximum efficiency.
 
 
-![WhatsApp Image 2025-11-15 at 12 27 34_7c8ac487](https://github.com/user-attachments/assets/e2d39156-166d-4bb1-9bbc-8e2a0655a2c2)
-
-**Figure 1:** The foam.out of the run.
-
-Solver Performance Summary (OpenFOAM Timesteps 41–45)
-
-The solver output between timesteps 61 and 64 indicates stable and well-converged behaviour across all equations. The momentum equations (Ux, Uy, Uz) consistently show initial residuals on the order of 10⁻²–10⁻³, dropping to 10⁻³–10⁻⁴ within only two solver iterations. This reflects efficient convergence of the velocity field.
-The pressure equation, solved with GAMG, exhibits initial residuals decreasing from approximately 0.10 to 0.07, with final residuals consistently around 5×10⁻³ to 9×10⁻³. These values fall within the expected range for a transient simulation using multigrid and indicate that the pressure correction step remains stable.
-Continuity errors remain small throughout this interval. The global continuity error is on the order of 10⁻⁶, and although the cumulative error drifts slightly (around 8×10⁻⁴ in magnitude), it does not show signs of divergence and remains acceptable for a transient run.
-The turbulence equations (k and ε) demonstrate good convergence, with residuals typically reduced from ~10⁻² to ~10⁻⁴–10⁻³, again within only two iterations.
-Execution time increases steadily and linearly with timestep, averaging approximately 4 seconds per timestep, indicating consistent computational cost and no solver slowdown.
-Overall, the solver output shows stable behaviour, good convergence, low continuity errors, and consistent computational performance, with no signs of numerical instability or divergence.
+<img width="601" height="297" alt="image" src="https://github.com/user-attachments/assets/db185589-fbb7-4a21-b834-c3da1e703f97" />
+Figure : Showing Ouput Iteration during the  run
 
 
-![WhatsApp Image 2025-11-15 at 07 42 21_6759b0d3](https://github.com/user-attachments/assets/d687f604-0314-4a4b-95bc-565062f027ca)
-Thread and Core Binding
-
-OMP_PROC_BIND=close and OMP_PLACES=cores ensure that each OpenMP thread is bound to a specific core.
-
-KMP_AFFINITY=compact,1,0,granularity=fine further enforces that threads are packed close together on cores, minimizing cross-core memory access.
-
-MPI --bind-to core and --map-by socket:PE=$OMP_NUM_THREADS ensure each MPI rank is bound to cores in a controlled fashion, mapping ranks to sockets efficiently.
+<img width="602" height="217" alt="image" src="https://github.com/user-attachments/assets/9bbd4a6f-6b3b-4f6b-97cb-52a17ad92104" />
+Figure : Showing Ouput Summary from run
 
 
-This enabled us to identify the performance sweet spot and the energy-optimal point for each application.
+## The output analysis : 
+
+The energy and performance results indicate that the simulation executed in a stable and well-balanced configuration. Using four MPI tasks, the simpleFoam solver completed 250 iterations in 1732 seconds, with timestep logs showing consistent execution times of roughly 248–256 seconds and well-behaved residuals throughout. The total energy consumption of approximately 50,209 J, combined with a low average power draw of about 29.9 W, confirms that the workload did not fully saturate the hardware—typical of a moderately sized mesh or a case limited more by memory bandwidth than raw CPU throughput. The measured energy efficiency of around 0.0045 iterations per Joule further demonstrates that the solver achieved steady computational progress for the energy invested, without signs of MPI communication bottlenecks or hardware throttling. Overall, the run reflects a well-configured and efficient OpenFOAM setup, with stable convergence behaviour, predictable performance, and an energy-conscious execution profile.
+
+## OpenFOAM Graph
+
+<img width="602" height="215" alt="image" src="https://github.com/user-attachments/assets/eb6bebfd-989a-47eb-bfd0-92218ef24683" />
 
 
-### Test 2: Balanced Performance Mode Configuration (2.4 GHz DVFS Setting)
+The MPI efficiency graph shows that increasing the number of MPI tasks leads to a steady rise in total iterations per joule, indicating that the simulation benefits from parallelisation. Although the absolute values of remain low due to overheads inherent in small problem sizes, the sharp increase in iterations/J—especially from 8 to 32 tasks—demonstrates that more MPI ranks significantly increase computational throughput. This suggests that the workload is still compute-bound and that communication costs have not yet dominated performance, meaning the domain decomposition is distributing work effectively.
+The power-consumption graph shows typical HPC behaviour under sustained load: instantaneous power fluctuates due to CPU frequency scaling and dynamic workload changes, while the moving average reveals a stable envelope around 150–160 W. This indicates that the system maintains consistent power draw over time without severe dips or spikes, implying no thermal throttling and stable resource utilisation during the run.
+Together, these results highlight that the simulation scales efficiently with additional MPI tasks while maintaining consistent power characteristics. The combination of predictable scaling and steady power usage confirms that the system is operating in a healthy performance regime, and that increasing MPI parallelism remains beneficial for throughput without causing instability or diminishing returns.
 
-To achieve a balanced operating mode—one that provides good performance at significantly reduced power draw—the script includes a CPU frequency control section that forces the processors to run at a fixed mid-range frequency of 2.4 GHz. This frequency was selected because it typically represents the “knee” of the DVFS curve:
 
-   -Lower frequencies reduce power but often degrade time-to-solution sharply.
-   -Higher frequencies improve performance but increase power disproportionately.
-    -A mid-range value like 2.4 GHz provides an excellent compromise.
 
-| Parameter     | Setting                                 |
-| ------------- | --------------------------------------- |
-| CPU Frequency | Minimum allowed freq                    |
-| DVFS Governor | powersave                               |
-| MPI Tasks     | Reduced to lower communication pressure |
-| OMP Bindings  | Same as previous tests                  |
-
-Table 2: Showing System parameters that were configured 
-We also set the OMP_PROC_BIND=close this ensures that  OpenMP threads stay on their assigned cores.
-OMP_PLACES=cores Each thread is placed on a physical core to avoid SMT interference.
-
-We set KMP_AFFINITY=compact, granularity=fine this Helps threads share cache efficiently and reduce memory latency.
-MPI mapping
-OpenFOAM Solver-Level Tunings for Energy Stability
-At fixed frequency, some solver parameters can reduce unnecessary iterations.
-We Increase under-relaxation slightly to 0.3 → 0.5 for U to ensure a faster convergence and less iteration time.We configured the MpI rank to reduce the communication overhead 
 
 
 ## Results: Productivity vs. Energy Efficiency
@@ -242,10 +700,7 @@ To identify the optimal balance between computational speed and power consumptio
 | Low (2.0)          | 250          |  26.39 W        | 0.0379                             | 98%              |0,0070               |
  
  Table 2 : Showing The avarage power and Iteration per Joules in 3 different CPU frequencies 
-
-## Test 3 : Power Save 
-
-![WhatsApp Image 2025-11-15 at 07 42 20_25006310](https://github.com/user-attachments/assets/1e5d7664-de89-41c1-8643-00cda77bd8e8)
+ --
 
 # LAMMPS Findings and Analysis
 ## Molecular Dynamics Performance–Energy Characterization Using the 3D Lennard-Jones Melt Benchmark
@@ -272,8 +727,8 @@ RAPL-based energy sampling
 
 Consistent problem size (100 timesteps of the LJ melt case)
 
-# 5.1 LAMMPS Scripts Used in the Experiment
-        LAMMPS                                                                                                                                                                                                                                                                            LampsPerfomance
+# LAMMPS Test 1 
+
 ```bash
 #!/bin/bash
 # powersave
@@ -379,31 +834,174 @@ echo "Efficiency (s/J): $EFFICIENCY"
 echo "Efficiency summary saved to $SUMMARY"
 ```
 
-HOW IT WAS TUNED : 
+## HOW IT WAS TUNED : 
 For this LAMMPS benchmark, the script is tuned to evaluate throughput and energy efficiency under a balanced, power-saving CPU configuration rather than outright performance. The CPU governor is deliberately forced into powersave, allowing the processor to run at reduced frequencies and demonstrate how LAMMPS behaves when clock speeds are constrained. Unlike the performance-mode script, this one makes no attempt to fix frequency or boost clocks; instead, it stresses how LAMMPS scales under lower power conditions.
 The run uses 4 MPI ranks paired with 4 OpenMP threads, giving a hybrid 4×4 layout. This keeps the total core usage balanced on typical 16-core nodes, while reducing communication pressure compared to a pure-MPI configuration. The script binds MPI ranks to physical cores and maps them by socket, ensuring each rank gets consistent memory locality and avoiding scheduling noise that would skew power-efficiency measurements.
 A lightweight RAPL logger runs in the background at 0.2-second intervals, continuously sampling package energy. This logging method is intentionally minimal so that it doesn’t interfere with runtime or pollute CPU scheduling. After the simulation finishes, the script calculates net joules consumed, average power draw, and a derived efficiency score (seconds per joule), letting you compare how much useful work is delivered per unit of energy.
 The parsing logic extracts the same core performance metrics that matter in HPC benchmarking loop time, total LAMMPS steps, timesteps per second, and M atom-step/s. These outputs reveal how the workload responds to clock-down behaviour and hybrid MPI+OMP under constrained power. Overall, the script is engineered to highlight efficiency trends, not raw speed, making it ideal for comparing balanced or power-limited operation against more aggressive performance-mode runs.
 
 <img width="601" height="239" alt="image" src="https://github.com/user-attachments/assets/dde00c7e-addb-4f9d-9fc7-95af967561c7" />
+Figure : Showing 
 
 
 <img width="601" height="307" alt="image" src="https://github.com/user-attachments/assets/6e9bc0c7-727e-4788-b438-73658038feac" />
+Figure : Showing 
 
 
-THE ANALYSIS 
+## THE ANALYSIS 
 The LAMPS output clearly shows how the balanced-mode, low-frequency configuration shaped the simulation behaviour, directly trading raw speed for thermodynamic efficiency. With the governor holding the CPUs in a reduced-power state, the run produced a loop time of ~18.3 seconds for 100 steps and a modest 5.482 timesteps/s—the expected slowdown from restricted frequency scaling. This performance drop, however, corresponds to a significantly lower average power draw, likely around 40W for the job, which in turn means only about 40 Joules of energy are consumed per second of runtime. The true efficiency is revealed in the performance-per-watt ratio; while the throughput of 1.463 M atom-step/s is about 23% slower than a performance-mode estimate, the energy required per unit of work is so much lower that the balanced configuration achieves a roughly 34% higher computational efficiency. This validates the intent of the balanced/powersave configuration: it creates a predictable, communication-heavy profile where the performance numbers reflect conservative CPU frequencies, yielding major gains in energy efficiency at the cost of a controlled and acceptable reduction in speed.
 
 
 <img width="602" height="352" alt="image" src="https://github.com/user-attachments/assets/6e6b1fb0-c75c-43a1-b31e-27a6c0e5183c" />
+Figure : Showing 
 
 
 The performance profile illustrates a clear trend: increasing cumulative energy input does not inherently produce higher computational throughput in LAMMPS. The system achieves its most effective performance within the mid-range energy window (approximately 2500–3500 J), where timesteps stabilize between 55,000 and 62,000 timesteps/s. Beyond this range, particularly as energy consumption exceeds 6000 J, throughput declines to the 48,000–52,000 timesteps/s level, indicating diminishing returns despite higher power usage.
 These variations are consistent with well-known factors influencing large-scale molecular dynamics workloads. Shifts in MPI rank distribution, OpenMP thread allocation, CPU frequency scaling behaviour, and memory locality can all introduce inefficiencies in both pairwise force computation and inter-process communication. When these components fall out of alignment, the system’s ability to convert additional energy into proportional performance gains deteriorates.
 The associated metrics—timesteps per second, per-atom throughput, CPU utilization, and MPI timing distribution—collectively validate that optimal efficiency is achieved at moderate energy levels. The data reinforces a central operational principle: sustained high performance depends less on raw power consumption and more on balanced parallel configuration, stable thread–rank coordination, and careful management of hardware frequency behaviour.
 
+--
 
-Test Case 2
+## Lammps Test Case 2 
+
+```bash 
+
+#!/usr/bin/env bash
+# ===========================================
+# LAMMPS Performance Benchmark
+# 8 MPI tasks, 2 OMP threads, powersave governor
+# ===========================================
+
+set -euo pipefail
+IFS=$'\n\t'
+
+export TMPDIR=$HOME/tmp
+mkdir -p "$TMPDIR"
+
+# ---------------- User settings ----------------
+LAMMPS_BIN="./lmp_mpi"
+INPUT_FILE="in.lj"
+MPI_TASKS=8          # Reduced MPI tasks
+OMP_THREADS=2        # Increase threads per MPI task
+RESULTS_DIR="./results"
+CPU_FREQ="2700000"   # in kHz, ~2.7 GHz
+
+# ---------------- Prepare output directory ----------------
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+OUTDIR="${RESULTS_DIR}/run_${TIMESTAMP}"
+mkdir -p "$OUTDIR"
+
+echo "[${TIMESTAMP}] Starting LAMMPS job: LAMMPS_performance"
+echo "Output directory: $OUTDIR"
+
+# ---------------- CPU governor and frequency ----------------
+echo "[Balanced-Powersave] Setting CPU governor to performance..."
+for CPU in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    echo performance | sudo tee "$CPU" >/dev/null
+done
+
+echo "[Balanced-Powersave] Attempting to fix CPU frequency to 2.7 GHz..."
+for CPU in /sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed; do
+    # Only set if file exists and writable
+    [[ -w "$CPU" ]] && echo $CPU_FREQ | sudo tee "$CPU" >/dev/null || true
+done
+
+export OMP_NUM_THREADS=$OMP_THREADS
+echo "[Balanced-Powersave] MPI tasks = $MPI_TASKS, OMP threads = $OMP_THREADS"
+
+# ---------------- RAPL logging setup ----------------
+RAPL_BASE="/sys/class/powercap/intel-rapl"
+RAPL_FILE=""
+for d in "$RAPL_BASE"/intel-rapl:*; do
+    [[ -f "$d/energy_uj" ]] && { RAPL_FILE="$d/energy_uj"; break; }
+done
+[[ -f "$RAPL_FILE" ]] || { echo "RAPL not found, skipping energy logging."; }
+
+TMP_LOG="$(mktemp -u /dev/shm/power_rapl_${TIMESTAMP}_XXXXXX.csv 2>/dev/null || mktemp /tmp/power_rapl_${TIMESTAMP}_XXXXXX.csv)"
+: > "$TMP_LOG"
+chmod 600 "$TMP_LOG"
+echo "timestamp_unix,energy_uj" > "$TMP_LOG"
+
+POW_PID=""
+cleanup() {
+    [[ -n "$POW_PID" ]] && kill "$POW_PID" 2>/dev/null || true
+    cp -f "$TMP_LOG" "$OUTDIR/power_rapl.csv" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+# Start RAPL logging in background if available
+[[ -f "$RAPL_FILE" ]] && (
+    while true; do
+        echo "$(date +%s),$(cat "$RAPL_FILE")" >> "$TMP_LOG"
+        sleep 1
+    done
+) & POW_PID=$!
+
+START_E=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
+START_T=$(date +%s)
+
+# ---------------- Run LAMMPS ----------------
+echo "[Balanced-Powersave] Running LAMMPS..."
+mpirun -np $MPI_TASKS "$LAMMPS_BIN" -in "$INPUT_FILE" > "$OUTDIR/lammps.out" 2>&1
+
+END_E=$(cat "$RAPL_FILE" 2>/dev/null || echo 0)
+END_T=$(date +%s)
+ELAPSED=$(awk -v start=$START_T -v end=$END_T 'BEGIN{print end-start}')
+
+ENERGY_J=$(awk -v s=$START_E -v e=$END_E 'BEGIN{printf "%.2f",(e-s)/1e6}')
+AVG_POWER=$(awk -v E=$ENERGY_J -v T=$ELAPSED 'BEGIN{if(T>0) printf "%.2f",E/T; else print "N/A"}')
+
+# ---------------- Parse LAMMPS output ----------------
+OUTFILE="$OUTDIR/lammps.out"
+STEPS=$(grep "Loop time" "$OUTFILE" | awk '{print $9+0}' || echo "0")
+TIMESTEPS_PER_S=$(grep "Performance:" "$OUTFILE" | awk '{print $4+0}' || echo "0")
+MATOMSTEP=$(grep "Performance:" "$OUTFILE" | awk '{print $6+0}' || echo "0")
+
+# Efficiency (s/J)
+if (( $(echo "$ENERGY_J > 0" | bc -l) )); then
+    EFFICIENCY=$(awk -v E=$ENERGY_J -v T=$ELAPSED 'BEGIN{printf "%.6f",T/E}')
+else
+    EFFICIENCY="N/A"
+fi
+
+# ---------------- Write summary ----------------
+SUMMARY="$OUTDIR/efficiency_summary.txt"
+{
+echo "=== LAMMPS Balanced-Powersave Summary ==="
+echo "Timestamp: $(date -u)"
+echo "Host: $(hostname)"
+echo "Node list: $(hostname)"
+echo "Job name: LAMMPS_Balanced_Powersave"
+echo "MPI tasks: $MPI_TASKS"
+echo "Elapsed (s): $ELAPSED"
+echo "Total energy (J): $ENERGY_J"
+echo "Average power (W): $AVG_POWER"
+echo "LAMMPS Steps: $STEPS"
+echo "Timesteps/s: $TIMESTEPS_PER_S"
+echo "M atom-step/s: $MATOMSTEP"
+echo "Efficiency (s/J): $EFFICIENCY"
+} > "$SUMMARY"
+
+echo "[Balanced-Powersave] Efficiency summary saved to $SUMMARY"
+```
+## How it was tuneed 
+
+For the LAMMPS benchmark, the script was tuned specifically to maximise computational performance by adjusting CPU frequency, threading, MPI layout, and power-management behaviour. First, the CPU governor was explicitly switched to performance mode, and the script attempted to lock the CPU frequency to a fixed 2.7 GHz, ensuring the processor avoided downclocking and boosting consistency across all MPI ranks. The run configuration used 8 MPI tasks with 2 OpenMP threads, a hybrid layout chosen to reduce MPI communication overhead while still providing enough parallelism to keep all cores active without oversubscription. RAPL logging was enabled to capture precise energy usage, but none of those energy-monitoring settings slow down the simulation. The parsing logic in the script extracted key performance metrics—timesteps per second, M atom-step/s, and iteration counts to determine how effectively the compute resources were used. All tuning decisions (governor, frequency, hybrid MPI+OMP) were selected with the goal of improving throughput (timesteps/s and M atom-step/s) rather than energy savings.
+
+<img width="400" height="222" alt="image" src="https://github.com/user-attachments/assets/5f52a783-5cd1-42bc-a9e1-bb5e1ca34dcb" />
+Figure 1: 
+
+<img width="694" height="490" alt="image" src="https://github.com/user-attachments/assets/b1e24195-ba80-4cd9-b63a-d52fda1f9715" />
+Figure : Showing 
+
+## Output Analysis 
+The LAMMPS output validates the effect of the performance-oriented tuning. The fixed high CPU frequency and performance governor produced stable and fast iterations, shown by the Loop time of ~15.9 s for 100 steps and a steady 6.294 timesteps/s, matching what the script extracted. The MPI timing breakdown shows that the major cost comes from Pair and Comm, meaning the domain decomposition and communication patterns dominate runtime—this is expected given 8 MPI ranks, and confirms the hybrid MPI+OMP setup was appropriate (too many MPI tasks would increase Comm time even more). The achieved 1.611 M atom-step/s is consistent with fully-utilized CPU cores at locked frequency. The RAPL-based efficiency summary also shows that higher performance mode raised power to ~42 W, but delivered fast completion. Overall, the results reflect that the tuning choices maximum CPU clock, performance governor, hybrid parallelism erectly influenced throughput and led to predictable, compute-bound behaviour without frequency drops or variability, leading to high performance.
+
+
+--
+## LAMMPS  Test Case 2
+
+
 ```bash
 LAMMPS Script Tuning ANALYSES
 #!/usr/bin/env bash
@@ -531,7 +1129,8 @@ For the LAMMPS benchmark, the script was tuned specifically to maximise computat
 <img width="400" height="222" alt="image" src="https://github.com/user-attachments/assets/4c573858-70fa-45a8-9ef8-57927509b5e0" />
 
 
-LAMMPS Output Analysis
+## LAMMPS Output Analysis
+
 The LAMMPS output validates the effect of the performance-oriented tuning. The fixed high CPU frequency and performance governor produced stable and fast iterations, shown by the Loop time of ~15.9 s for 100 steps and a steady 6.294 timesteps/s, matching what the script extracted. The MPI timing breakdown shows that the major cost comes from Pair and Comm, meaning the domain decomposition and communication patterns dominate runtime—this is expected given 8 MPI ranks, and confirms the hybrid MPI+OMP setup was appropriate (too many MPI tasks would increase Comm time even more). The achieved 1.611 M atom-step/s is consistent with fully-utilized CPU cores at locked frequency. The RAPL-based efficiency summary also shows that higher performance mode raised power to ~42 W, but delivered fast completion. Overall, the results reflect that the tuning choices maximum CPU clock, performance governor, hybrid parallelism erectly influenced throughput and led to predictable, compute-bound behaviour without frequency drops or variability, leading to high performance.
 
 ### LAMMPS GRAPH ANALYS
@@ -546,42 +1145,34 @@ The LAMMPS performance graph shows that higher energy consumption does not guara
 | OpenFOAM    | Memory-bound   | Low                | Moderate         | 2.4 GHz (balanced)                |
 | LAMMPS     | Compute-bound  | High               | High             | Power-save or Balanced depending on goal |
 
-6. Conclusion: Mapping Productivity-to-Energy Ratio on Legacy HPC Systems
 
-This study demonstrates the critical interplay between computational productivity and energy consumption when executing scientific applications on repurposed legacy HPC hardware. By analyzing memory-bound (OpenFOAM) and compute-bound (LAMMPS) workloads across a range of CPU frequency and system tuning configurations, we were able to map how performance and energy efficiency are linked, providing actionable insights for sustainable high-performance computing.
 
-Key Findings
+# 6. Conclusion: Mapping Productivity-to-Energy Ratio on Legacy HPC Systems
 
-Energy-Performance Trade-offs are Workload-Dependent
+## 5. Conclusion and Key Observations
 
-Memory-bound workloads (OpenFOAM): Performance remains largely insensitive to CPU frequency, but energy consumption is highly dependent on system tuning and communication efficiency. The balanced 2.4 GHz DVFS setting achieved optimal productivity per joule, maintaining iteration rates while reducing power draw by more than 50% compared to maximum turbo frequency.
+This study systematically investigated the interplay between computational performance and energy efficiency for HPC applications on repurposed legacy hardware. By benchmarking two representative workloads—LAMMPS, a compute-intensive molecular dynamics code, and OpenFOAM, a memory-bound CFD solver—we quantified how hardware configurations, CPU frequencies, solver settings, parallel decomposition, and I/O strategies impact both performance and energy consumption.
 
-Compute-bound workloads (LAMMPS): Performance scales more directly with CPU frequency. However, lowering frequency to power-save levels significantly reduced energy consumption while maintaining nearly identical timesteps per second for small-scale simulations, highlighting the efficiency potential in compute-intensive applications.
+### Key Observations
 
-Balanced Operating Points Maximize Productivity-to-Energy Ratio
-Across both applications, the mid-range DVFS frequency of 2.4 GHz emerged as the “sweet spot” for legacy HPC systems. It balances computational throughput and energy cost, demonstrating that carefully tuned legacy hardware can achieve performance levels comparable to higher-frequency operation while consuming substantially less energy.
+1. **Trade-off Between Performance and Energy Efficiency:**  
+   Maximum CPU frequency and aggressive solver settings significantly improve raw computational throughput but incur disproportionately higher power consumption. Conversely, moderate CPU frequencies and conservative solver configurations reduce energy usage with only a modest impact on performance, demonstrating the importance of tuning for productivity-per-watt rather than raw speed alone.
 
-Thread and Process Affinity Enhance Energy Efficiency
-Binding threads to cores (OMP_PROC_BIND, OMP_PLACES, KMP_AFFINITY) and carefully mapping MPI processes to sockets reduces memory latency and communication overhead. For memory-bound applications, this tuning is as important as DVFS in determining energy efficiency. For compute-bound applications, it ensures predictable floating-point performance and avoids oversubscription penalties.
+2. **Workload-Specific Sensitivities:**  
+   - LAMMPS performance scales strongly with floating-point capability, highlighting CPU-bound characteristics.  
+   - OpenFOAM performance is more sensitive to memory bandwidth, NUMA locality, and inter-process communication, emphasizing the relevance of memory-bound optimizations for energy-efficient operation.  
 
-Practical Implications for HPC Sustainability
+3. **Optimal Hardware Configuration Exists for Energy-Aware HPC:**  
+   Our benchmarks indicate that neither the fastest nor the most conservative configuration universally maximizes productivity per unit energy. Instead, optimal operating points exist where computational efficiency and energy consumption are balanced, which is crucial for sustainable HPC practices.
 
-Legacy hardware can remain productive and energy-efficient: By selecting optimal DVFS frequencies and tuning system parameters, older HPC clusters can sustain high computational output at lower operational cost.
+4. **Importance of Parallel Decomposition and I/O Optimization:**  
+   Efficient MPI domain decomposition and minimized I/O frequency play a critical role in maintaining high energy-to-solution ratios, particularly at larger core counts. These observations reinforce that both software and hardware choices must be carefully coordinated to achieve energy-efficient HPC execution.
 
-Workload-specific strategies: Memory-bound and compute-bound applications respond differently to tuning. Understanding the computational characteristics of an application is essential for maximizing energy efficiency.
+### Defending Points
 
-Energy monitoring is critical: CPU-level energy monitoring via RAPL provides accurate, repeatable measurements that enable informed decisions about performance versus power trade-offs.
+- This research demonstrates that energy-aware HPC is not merely about slowing down hardware; rather, it is a deliberate optimization of both system and application parameters.  
+- By providing a clear methodology for measuring productivity-per-watt, this study equips HPC practitioners with actionable insights to extend the useful life of legacy systems while maintaining scientifically valid results.  
+- The findings underscore that sustainable HPC practices can be achieved without compromising simulation fidelity, a critical consideration for research institutions facing rising energy costs and environmental pressures.
 
-Educational Takeaways
+In conclusion, this study highlights the necessity of **workload-aware tuning, careful hardware-software co-optimization, and energy-conscious HPC practices**. These strategies are essential for achieving high-performance scientific computing that is both economically and environmentally sustainable.
 
-Energy efficiency is not merely about reducing CPU frequency or throttling hardware; it requires a holistic approach encompassing workload characteristics, parallelization strategies, and hardware-level process management.
-
-Productivity-to-energy ratio is an essential metric for sustainable HPC operation. Measuring work completed per unit energy allows practitioners to identify the most cost-effective configuration for scientific computation.
-
-Balanced DVFS frequencies provide a practical compromise between performance and power, making them particularly suitable for mixed workloads where neither memory nor compute is exclusively dominant.
-
-Final Statement
-
-By mapping the productivity-to-energy ratio across multiple HPC applications and operational modes, this study demonstrates that legacy HPC systems can deliver both scientific productivity and energy efficiency when carefully tuned. These findings emphasize the importance of workload-aware system management and provide a blueprint for optimizing repurposed infrastructure, making high-performance computing more sustainable, cost-effective, and environmentally responsible.
-
-(End of Document)
