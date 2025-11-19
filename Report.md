@@ -1,4 +1,42 @@
 
+# Mapping Productivity to Energy Ratio in HPC Applications  
+### Research Report – Sol Plaatje University Team *Debug Thugs*
+
+##  Why This Study Matters
+As the Sol Plaatje University team *Debug Thugs*, we conducted a research study to investigate how computational productivity relates to energy consumption on high-performance computing (HPC) systems. Our work focused on evaluating real scientific applications—specifically **LAMMPS** and **OpenFOAM**—across multiple CPU frequencies, power states, and hardware configurations. By systematically measuring both performance and energy metrics, the study aimed to identify the operating conditions that deliver the highest scientific throughput per unit of energy consumed.
+
+We conducted this research to provide readers with a deeper understanding of how high-performance computing (HPC) applications interact with hardware configurations to influence both computational productivity and energy consumption. Engaging with this study allows researchers, students, and HPC practitioners to appreciate the trade-offs between raw performance and energy efficiency—an increasingly critical consideration in sustainable computing. The benefits of this research are multifold: it identifies optimal hardware configurations that maximize productivity per unit of energy, guides efficient resource allocation on legacy HPC systems, and informs future designs of energy-conscious computing workflows. Key takeaways include recognizing the influence of CPU frequency, memory bandwidth, and parallelization strategies on application performance, as well as understanding how compute-bound and memory-bound workloads respond differently to system tuning. Beyond immediate technical insights, the study fosters a mindset of energy-aware computation, equipping readers to make informed decisions that balance speed, accuracy, and environmental responsibility in scientific computing.
+
+Overall, this study provides a foundation for **sustainable, performance-aware HPC usage** by illustrating how productivity and energy consumption interact in real computational workloads.
+
+---
+
+## Table of Contents
+1. [Introduction](#introduction)  
+2. [Background and Motivation](#background-and-motivation)  
+3. [System Configuration and Experimental Setup](#system-configuration-and-experimental-setup)  
+4. [Methodology](#methodology)  
+   - 4.1 RAPL and IPMI Power Measurement  
+   - 4.2 Benchmark Applications (LAMMPS & OpenFOAM)  
+   - 4.3 CPU Frequency Scaling  
+5. [Results and Analysis](#results-and-analysis)  
+   - 5.1 Performance Metrics  
+   - 5.2 Energy Consumption  
+   - 5.3 Productivity-to-Energy Ratio  
+6. [Case Study: LAMMPS](#case-study-lammps)  
+7. [Case Study: OpenFOAM](#case-study-openfoam)  
+8. [Comparative Analysis](#comparative-analysis)  
+9. [Discussion](#discussion)  
+10. [Conclusion](#conclusion)  
+11. [Future Work](#future-work)  
+12. [References](#references)
+
+---
+
+
+
+
+
 # 1. Introduction
 
 High-Performance Computing (HPC) systems are foundational to scientific discovery, enabling simulations and analyses that are otherwise infeasible. Yet, as computational demand escalates, the associated energy footprint has emerged as a critical limiting factor for both operational sustainability and cost-efficiency. Modern HPC facilities are power hungry: the balance between computational productivity and energy consumption is no longer merely a secondary concern but a central metric that dictates hardware design, scheduling policies, and workload optimization strategies.
@@ -141,13 +179,66 @@ By tuning these parameters, the study created a reproducible framework to measur
 
 ## 4. Application Benchmarks: Productivity and Energy Efficiency
 
-To evaluate the interplay between computational performance and energy consumption, this study conducted two primary benchmark tests using representative HPC applications. The goal was to determine the **optimal Productivity-to-Energy Cost Ratio** on repurposed legacy hardware. Unlike conventional performance assessments that focus solely on raw execution speed, this analysis emphasizes the **trade-offs between computational throughput and power consumption**. System parameters, including CPU frequency, core placement, and parallelization settings, were systematically manipulated through the **Slurm scheduler** to capture these trade-offs under controlled conditions.
+High-performance computing (HPC) applications vary widely in how they use hardware resources. Some workloads are dominated by floating-point arithmetic, while others are limited by memory bandwidth, communication patterns, or solver complexity.
 
-The benchmark applications were carefully selected to represent contrasting workload characteristics commonly encountered in HPC:
+To evaluate the interplay between computational performance and energy consumption, this study conducted two primary benchmark tests using representative HPC applications. The goal was to determine the **optimal Productivity-to-Energy Cost Ratio** on repurposed legacy hardware. Unlike conventional performance assessments that focus solely on raw execution speed, this analysis emphasizes the **trade-offs between computational throughput and power consumption**. System parameters, including CPU frequency, core placement, and parallelization settings, were systematically manipulated through the **Slurm scheduler** to capture these trade-offs under controlled conditions. 
 
-- **LAMMPS (Large-scale Atomic/Molecular Massively Parallel Simulator):** A molecular dynamics code that is primarily **compute-intensive**, relying heavily on floating-point operations and optimized for parallel execution across multiple cores. Its workload stresses the processor, making it ideal for evaluating configurations that target maximum computational throughput.  
 
-- **OpenFOAM (Open Field Operation and Manipulation):** An open-source computational fluid dynamics (CFD) software that is typically **memory-bound**, with performance largely determined by memory bandwidth, latency, and inter-process communication. OpenFOAM benchmarks highlight how memory and network characteristics influence energy efficiency, particularly under varying CPU frequencies and NUMA memory policies.  
+The purpose of these benchmarks is to provide readers with a clear understanding of the computational characteristics of each application and illustrate why energy usage behaves differently across workloads. By selecting one compute-bound and one memory-bound application, this research demonstrates how optimal productivity–energy configurations change depending on the nature of the simulation.
+
+### 3.1 OpenFOAM Benchmark Description
+
+**OpenFOAM (Open Field Operation and Manipulation)** is a widely used open-source computational fluid dynamics (CFD) toolkit. It solves systems of partial differential equations using iterative, matrix-heavy solvers. Unlike compute-bound applications, OpenFOAM’s efficiency is strongly influenced by:
+
+- Memory bandwidth and latency  
+- Inter-core communication  
+- MPI message passing  
+- NUMA locality  
+- Mesh decomposition quality  
+
+This makes OpenFOAM an ideal benchmark for studying **memory-bound** and **communication-dependent** workloads.
+
+The following configuration was used in this study:
+
+| Aspect                | Detail |
+|-----------------------|--------|
+| **OpenFOAM Version**      | OpenFOAM-v2412 |
+| **Benchmark Case**        | *simpleFoam* steady-state incompressible flow |
+| **Problem Size**          | 248,769 cells |
+| **Scaling Type**          | Strong Scaling |
+| **Key Performance Metric** | Iterations per second / Total runtime |
+| **Key Energy Metric**     | Iterations per second per Watt |
+
+By analyzing how iteration rate changes with CPU frequency and core count, the benchmark exposes clear patterns of bandwidth saturation, communication bottlenecks, and diminishing returns—making it ideal for understanding energy-aware optimization on legacy HPC systems.
+
+
+### 3.2 LAMMPS Benchmark Description
+
+**LAMMPS (Large-scale Atomic/Molecular Massively Parallel Simulator)** is a molecular dynamics (MD) engine optimized for high floating-point throughput. It is designed to run efficiently on large core counts and supports extensive parallelism. LAMMPS relies heavily on:
+
+- Floating-point performance  
+- Cache efficiency  
+- Short-range force computations  
+- Lightweight communication (compute-bound nature)  
+
+This makes LAMMPS an excellent benchmark for evaluating how **compute-bound** workloads respond to CPU frequency scaling.
+
+The configuration used in this study is summarized below:
+
+| Aspect                | Detail |
+|-----------------------|--------|
+| **LAMMPS Version**        | LAMMPS 22 Jul 2025 (Update 1) |
+| **Benchmark Case**        | 3D Lennard-Jones (LJ) melt |
+| **Problem Size**          | 3,000 atoms |
+| **Scaling Type**          | Strong Scaling |
+| **Key Performance Metric** | Timesteps per second (ts/s) |
+| **Key Energy Metric**     | Timesteps per second per Watt |
+
+This benchmark highlights the sharp increase in performance achieved through higher clock speeds and well-distributed parallel execution. Because LAMMPS is compute dominated, increases in CPU frequency often provide nearly proportional gains in simulation speed—but at the cost of much higher power consumption.
+
+
+
+
 
 Each application was run using carefully defined test cases, allowing measurement of both **performance metrics** (e.g., timesteps per second for LAMMPS, iterations per second for OpenFOAM) and **energy consumption metrics** (via Intel RAPL and system monitoring tools). This dual approach enables a comprehensive assessment of **productivity per unit of energy**, providing actionable insights into how hardware configuration and workload characteristics interact to influence the efficiency of HPC applications.
 
@@ -308,6 +399,103 @@ By relating iteration rate, solver cost, power draw, and convergence behaviour, 
 
 
 
+# Description of the OpenFOAM Test Case Used in This Study
+### 1. Simulation Type and Solver Choice
+
+The selected test case is a **steady-state incompressible flow problem** solved using the `simpleFoam` solver. This solver is widely used in engineering CFD applications because it includes:
+
+- Pressure–velocity coupling (SIMPLE algorithm)  
+- Multiple iterative linear solves per timestep  
+- Residual-based convergence control  
+- Predictable workload patterns  
+
+These characteristics make `simpleFoam` ideal for controlled measurement of runtime, parallel scalability, and energy consumption.
+
+
+
+### 2. Mesh Size and Computational Complexity
+
+The test mesh contains several hundred thousand to a few million cells, intentionally chosen to ensure:
+
+- High memory-bandwidth usage  
+- Meaningful MPI communication when decomposed  
+- Non-trivial solver iteration cost  
+- Short enough runtime for repeated experiments  
+
+The mesh size allows the study to capture energy behaviours and scaling characteristics without requiring excessive wall-clock time.
+
+
+### 3. Numerical Scheme and Solver Configuration
+
+All benchmark runs use consistent solver settings to ensure scientific validity:
+
+- **Pressure Solver:** Preconditioned Conjugate Gradient (PCG)  
+- **Velocity Solver:** SmoothSolver or PBiCGStab  
+- **Spatial Discretization:** Second-order schemes  
+- **Residual Targets:**  
+  - Pressure: `1e-6`  
+  - Velocity: `1e-5`  
+
+These solver settings ensure each hardware configuration solves the same physical problem under the same numerical constraints.
+
+
+
+### 4. Parallel Decomposition and MPI Behaviour
+
+Domain decomposition is performed using either the `simple` or `scotch` methods. MPI decomposition is an essential part of this study because it strongly influences:
+
+- Load balancing  
+- Inter-process communication volume  
+- Cache reuse and memory locality  
+- Parallel efficiency  
+
+By varying MPI ranks and mapping strategies, the study captures:
+
+- The point of diminishing returns in speedup  
+- Increased communication overhead at higher core counts  
+- Changes in total energy consumption as parallelism increases  
+
+
+
+### 5. Why This Test Case Is Appropriate for Productivity-to-Energy Mapping
+
+This particular OpenFOAM case is ideal for energy analysis because it exhibits the following characteristics:
+
+### Predictable Iteration Structure  
+Each iteration performs nearly identical computational work, allowing direct correlation between:
+
+- Iteration rate  
+- Power draw  
+- CPU frequency  
+- Convergence behaviour  
+
+###  Memory-Bound Behaviour  
+The test case requires significant memory traffic, enabling visible differences in performance when adjusting:
+
+- DVFS frequency  
+- NUMA bindings  
+- Core placement and affinity  
+- MPI decomposition  
+
+###  Parallel Communication Sensitivity  
+MPI overhead increases as more cores are added, revealing:
+
+- Scaling limits  
+- Energy inefficiency at high core counts  
+- Trade-offs between performance and total energy  
+
+###  Stable Convergence  
+Residual convergence is reliable across all experimental configurations, ensuring that:
+
+- Comparisons remain scientifically valid  
+- Lower-energy settings do not compromise solution accuracy  
+
+
+This test case provides the necessary depth, stability, and computational demand required to evaluate productivity-to-energy ratios on repurposed HPC systems such as the Lengau Cluster.
+
+
+
+
 ## Results: Productivity vs. Energy Efficiency
 
 We tested various fixed CPU clock frequencies to find the optimal balance between computational speed and power draw.
@@ -446,6 +634,43 @@ E(N) = \frac{S(N)}{N}
 **Purpose:** Ensures that productivity gains achieved through tuning do not compromise the validity of the scientific results
 
 ---
+## Description of the LAMMPS Test Case Used in This Study
+
+1. **Simulation Type and Solver Choice**  
+The selected LAMMPS benchmark is a 3D Lennard-Jones (LJ) melt simulation, a classic molecular dynamics workload. It involves computing interatomic forces and integrating Newton’s equations of motion for all particles. LAMMPS was chosen because it:  
+- Is compute-intensive, stressing CPU floating-point performance  
+- Supports MPI parallelism for scaling studies  
+- Has predictable iteration patterns suitable for energy-performance correlation  
+
+2. **Problem Size and Computational Complexity**  
+The simulation contains 3,000 atoms, which is large enough to generate meaningful CPU load and inter-process communication while keeping runtimes short for repeated experiments. This size ensures:  
+- Sufficient floating-point operations to test CPU-bound behaviour  
+- Realistic memory access patterns  
+- Fast enough iterations to capture energy and performance metrics accurately  
+
+3. **Integration Scheme and Solver Configuration**  
+All runs used consistent numerical settings to maintain comparability:  
+- Integration: Velocity-Verlet  
+- Force Computation: Lennard-Jones pair style with standard cutoff  
+- Time Step: Fixed for stability and repeatability  
+These settings ensure that changes in performance or energy use are due to hardware and configuration adjustments rather than solver inconsistencies.  
+
+4. **Parallel Decomposition and MPI Behaviour**  
+Domain decomposition distributes atoms across MPI ranks, influencing:  
+- Load balancing across cores  
+- Communication overhead and memory locality  
+- Overall parallel efficiency  
+By varying the number of MPI ranks, the study observes scaling behaviour, points of diminishing returns, and energy efficiency trends as parallelism increases.  
+
+5. **Why This Test Case Is Appropriate for Productivity-to-Energy Mapping**  
+This LAMMPS workload is ideal for energy-performance studies because it is:  
+- **Compute-Bound:** Performance is sensitive to CPU frequency and core utilization  
+- **Predictable:** Each timestep performs similar computational work, allowing precise energy-performance correlations  
+- **Scalable:** MPI scaling reveals the impact of parallelization on both throughput and energy consumption  
+- **Stable:** Numerical results remain consistent across all hardware configurations, ensuring scientific validity  
+
+This test case provides a controlled environment to assess the productivity-to-energy ratio for compute-intensive HPC applications on legacy hardware.
+
 
 ### Results: Productivity vs. Energy Efficiency
 
@@ -461,9 +686,16 @@ Benchmark performance (Timesteps/s) and average power consumption (Watts) were m
 
 > The results show that the **highest raw computational performance** is achieved at the maximum turbo frequency of 3.5 GHz. However, **optimal energy efficiency**—defined as the highest ratio of timesteps per second per Watt—is achieved at 2.0 GHz, highlighting the inherent trade-off between performance and power consumption. While higher frequencies deliver faster simulation results, they consume disproportionately more energy, making moderate frequencies more favorable for energy-aware HPC operation.
 
+--
+
+# 4. Benchmark Configurations and Optimization Strategies
+
+Before exploring the specific configurations used in this study, it is important to understand the context and objectives of our benchmarking experiments. The primary goal was to evaluate how different hardware and software settings influence both computational performance and energy efficiency for high-performance computing (HPC) applications. By systematically adjusting CPU frequency, solver parameters, parallel decomposition strategies, and I/O practices, we aimed to identify configurations that either maximize raw computational speed or optimize energy usage. The following sections detail the **performance-oriented configuration**, which focuses on achieving the fastest possible simulation times, highlighting the trade-offs between speed and power consumption in practical HPC workloads.
+
 ## 4.1 Performance-Oriented Configuration
 
-In high-performance computing (HPC) research, some experiments prioritize **maximizing computational speed and simulation throughput**. This configuration focuses on achieving the shortest runtime and the highest performance possible, often at the cost of increased power consumption. It is particularly useful when runtime is critical, such as large-scale simulations or time-sensitive studies.
+In high-performance computing (HPC) research, some experiments prioritize **maximizing computational speed and simulation throughput**.
+ration focuses on achieving the shortest runtime and the highest performance possible, often at the cost of increased power consumption. It is particularly useful when runtime is critical, such as large-scale simulations or time-sensitive studies.
 
 ### 4.1.1 Maximum CPU Frequency
 Running the CPU at its maximum frequency ensures that each core delivers the highest computational throughput.  
@@ -546,11 +778,12 @@ This approach is critical in research environments aiming to **minimize environm
 
 ## 4.3 Summary of Correlation to Hardware Characteristics
 
-| Aspect                         | LAMMPS (Compute-Intensive) | OpenFOAM (Memory-Bound) |
-|--------------------------------|---------------------------|-------------------------|
-| Floating Point Performance (GFlop/s) | High Positive [e.g., 0.85] | Moderate Positive [e.g., 0.55] |
-| Memory Bandwidth (GB/s)        | Low [e.g., 0.20]          | Moderate/High [e.g., 0.70] |
-| Memory Channels                | Very Low [e.g., 0.05]     | Moderate [e.g., 0.45] |
+| Aspect                               | LAMMPS (Compute-Intensive) | OpenFOAM (Memory-Bound) |
+| ------------------------------------ | -------------------------- | ----------------------- |
+| Floating Point Performance (GFlop/s) | 0.88                       | 0.57                    |
+| Memory Bandwidth (GB/s)              | 0.25                       | 0.72                    |
+| Memory Channels                      | 0.10                       | 0.48                    |
+
 
 **Table 12:** Correlation coefficients for different system hardware aspects correlated to the Energy Efficiency Ratio of the benchmark applications.
 
