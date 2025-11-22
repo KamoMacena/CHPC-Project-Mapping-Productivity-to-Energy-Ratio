@@ -306,7 +306,7 @@ CONCLUSION
 The benchmarks show that performance-focused tuning is essential for HPC efficiency. LAMMPS runs achieved the best performance at mid-energy levels by balancing MPI tasks, OpenMP threads, and CPU frequency, avoiding wasted power and thermal throttling. OpenFOAM scaled nearly linearly with MPI tasks up to 32, demonstrating effective domain decomposition and low communication overhead. Overall, these results confirm that optimal parallel configuration and solver tuning significantly improve both simulation speed and energy efficiency.
 
 
---
+---
 
 ## OpenFOAM Test 2 
 
@@ -458,11 +458,11 @@ Figure 5: OpenFOAM's Effeciency  Result
 More seconds per joule = more time spent per unit of energy, indicating poor productivity per energy.
   Iterations per Joule is Very Low
 Only 0.007012 iterations per joule, showing extremely low computational throughput relative to the energy consumed.
-OpenFOAM uses many sparse linear solves, which are slow and memory-bound, causing poor energy scaling.
-  Solver Did Not Converge
-Maximum residual: 6 → this is extremely high.
-The simulation did not converge, which means the energy spent did not lead to a valid solver result.
-Poor convergence reduces the scientific usefulness of the run despite the large energy cost.
+OpenFOAM uses many sparse linear solves, which are slow and memory-bound, causing poor energy scaling.
+Solver Did Not Converge
+Maximum residual: 6 → this is extremely high.
+The simulation did not converge, which means the energy spent did not lead to a valid solver result.
+Poor convergence reduces the scientific usefulness of the run despite the large energy cost.
 
 # OPEMFOAM GRAPH ANALYSES
 <img width="602" height="443" alt="image" src="https://github.com/user-attachments/assets/c83007d8-18ee-4363-b982-aa55718d6420" />
@@ -475,7 +475,7 @@ The OpenFOAM graph shows that increasing MPI tasks consistently increases the to
 
 ---
 
-## OpenFOAM Test3 
+## OpenFOAM Test 3 
 Table 1: Tuned System and Application Parameters for Perfomance OpenFOAM Benchmarking
 
 | Parameter / Setting                | Applied Value                     |
@@ -493,7 +493,7 @@ Table 1: Tuned System and Application Parameters for Perfomance OpenFOAM Benchma
 
 
 ```bash
-PEN FOAM 
+OPEN FOAM 
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          LastScript
 
 #!/usr/bin/env bash
@@ -678,6 +678,7 @@ Figure : Showing Ouput Summary from run
 The energy and performance results indicate that the simulation executed in a stable and well-balanced configuration. Using four MPI tasks, the simpleFoam solver completed 250 iterations in 1732 seconds, with timestep logs showing consistent execution times of roughly 248–256 seconds and well-behaved residuals throughout. The total energy consumption of approximately 50,209 J, combined with a low average power draw of about 29.9 W, confirms that the workload did not fully saturate the hardware—typical of a moderately sized mesh or a case limited more by memory bandwidth than raw CPU throughput. The measured energy efficiency of around 0.0045 iterations per Joule further demonstrates that the solver achieved steady computational progress for the energy invested, without signs of MPI communication bottlenecks or hardware throttling. Overall, the run reflects a well-configured and efficient OpenFOAM setup, with stable convergence behaviour, predictable performance, and an energy-conscious execution profile.
 
 ## OpenFOAM Graph
+The following OpenFOAM graphs display the MPI tasks against the Power Consumption. The second graph(on the right) shows the Power Consumption over time: 
 
 <img width="602" height="215" alt="image" src="https://github.com/user-attachments/assets/eb6bebfd-989a-47eb-bfd0-92218ef24683" />
 
@@ -1000,8 +1001,8 @@ Figure : Showing
 The LAMMPS output validates the effect of the performance-oriented tuning. The fixed high CPU frequency and performance governor produced stable and fast iterations, shown by the Loop time of ~15.9 s for 100 steps and a steady 6.294 timesteps/s, matching what the script extracted. The MPI timing breakdown shows that the major cost comes from Pair and Comm, meaning the domain decomposition and communication patterns dominate runtime—this is expected given 8 MPI ranks, and confirms the hybrid MPI+OMP setup was appropriate (too many MPI tasks would increase Comm time even more). The achieved 1.611 M atom-step/s is consistent with fully-utilized CPU cores at locked frequency. The RAPL-based efficiency summary also shows that higher performance mode raised power to ~42 W, but delivered fast completion. Overall, the results reflect that the tuning choices maximum CPU clock, performance governor, hybrid parallelism erectly influenced throughput and led to predictable, compute-bound behaviour without frequency drops or variability, leading to high performance.
 
 
---
-## LAMMPS  Test Case 2
+---
+## LAMMPS  Test Case 3
 
 
 ```bash
