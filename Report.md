@@ -676,11 +676,12 @@ This test case provides a controlled environment to assess the productivity-to-e
 
 Benchmark performance (Timesteps/s) and average power consumption (Watts) were measured at various fixed CPU clock frequencies, controlled via the Slurm job script.
 
-| CPU Frequency (GHz) | Timesteps/s | Avg Power (Watts) | Energy Efficiency (ts/s per Watt) | Atom Steps/s |
-|--------------------|------------|-----------------|---------------------------------|--------------|
-| Max Turbo (3.5)    | 7,152      | 88.75           | 0.1127                          | 1.83         |
-| Optimal (2.7)      | 5,278      | 46.03           | 0.0217                          | 1.33         |
-| Low (2.0)          | 6,292      | 39.06           | 0.0256                          | 1.61         |
+| CPU Frequency (GHz) | Timesteps/s | Avg Power (W) | Energy Efficiency (ts/s per W) | Atom Steps/s | Time to Simulation (seconds) |
+| ------------------- | ----------- | ------------- | ------------------------------ | ------------ | ---------------------------- |
+| **Max Turbo (3.5)** | 7,152       | 88.75         | 0.1127                         | 1.83         | **13,9824**                  |
+| **Optimal (2.7)**   | 5,278       | 46.03         | 0.0217                         | 1.33         | **19**                       |
+| **Low (2.0)**       | 6,292       | 39.06         | 0.0256                         | 1.61         | **22,605**                   |
+
 
 **Table 9:** LAMMPS single-node performance and energy efficiency comparison across different CPU clock speeds. The results correspond to the best performing run at each frequency.
 
