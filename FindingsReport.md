@@ -434,6 +434,8 @@ echo "Summary available at: $OUTDIR/efficiency_summary.txt"
 
 # How it was tuned 
 
+To ensure accurate and energy-aware performance measurements, several key parameters were carefully configured for the OpenFOAM parallel run. These included setting the number of MPI tasks to define parallel subdomains and balance memory usage, selecting the scotch decomposition method to automatically partition the mesh and minimize inter-process communication, and enabling power measurement via Intel RAPL for precise energy logging. Additional settings, such as a one-second power logging interval, process binding using mpirun -np $SLURM_NTASKS to keep MPI processes on the correct cores, running the simpleFoam -parallel solver for steady-state incompressible simulations, and using dedicated timestamped results directories, were applied to optimize parallel efficiency, maintain reproducible outputs, and accurately capture energy consumption. Temporary directories were also specified to isolate simulation files and prevent clutter in the source case folder.
+
 <img width="484" height="344" alt="image" src="https://github.com/user-attachments/assets/5bdf780c-4f4a-4dea-b0c1-7ea49515f058" />
 Figure 4:OPENFOMS's Foam.out print
 
