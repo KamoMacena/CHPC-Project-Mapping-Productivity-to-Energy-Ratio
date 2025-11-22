@@ -601,16 +601,20 @@ Monitoring these metrics ensures that energy-efficient configurations do not com
 **Key Metrics:**
 
 - **Speedup (S(N)):**
-  $$
-\mathbf{S(N) = \frac{T(1)}{T(N)}}
+
 $$
+\mathbf{S(N) = \frac{T(1)}{T(N)}} 
+$$
+
  
 where \(T(1)\) is the runtime on a single core and \(T(N)\) is the runtime on \(N\) cores.
 
-- **Parallel Efficiency (E(N)):**  
-\[
-E(N) = \frac{S(N)}{N}
-\]  
+- **Parallel Efficiency (E(N)):**
+
+  
+$$
+\mathbf{E(N) = \frac{S(N)}{N}}
+$$  
 
 **Strong Scaling:** Measures performance improvement when increasing cores for a fixed problem size. Efficiency typically decreases at high core counts due to:
 
